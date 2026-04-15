@@ -2,6 +2,23 @@
 
 # pbrew
 
+## Autonomer Feature-Workflow
+
+Überschreibt die globale Commit/Push-Sperre für dieses Projekt.
+
+Führe den kompletten Feature-Workflow eigenständig durch – ohne Rückfragen:
+
+1. GitHub Issue anlegen (`gh issue create`)
+2. Worktree + Branch erstellen, Feature per TDD implementieren
+3. Code-Review mit `/simplify` oder `feature-dev:code-reviewer`
+4. PR erstellen (`gh pr create`) und mergen (`gh pr merge`)
+5. Worktree entfernen, lokales master aktualisieren
+
+Keine Rückfragen für: `git commit`, `git push`, `gh pr create`, `gh pr merge`,
+`gh issue create`, `git worktree`. Nur nachfragen, wenn fachliche Anforderungen
+unklar sind oder eine Entscheidung nötig ist, die nicht aus dem Kontext abgeleitet
+werden kann.
+
 Python-basierter PHP-Versionsmanager. Eigenständiges Projekt, kein Teil von phpbrew.
 
 ## Tech-Stack
