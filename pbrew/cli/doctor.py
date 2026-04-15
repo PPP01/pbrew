@@ -1,14 +1,11 @@
-import shutil
 import sys
 from pathlib import Path
 
 import click
 
 from pbrew.core.paths import bin_dir, family_from_version, versions_dir, state_file
+from pbrew.core.prerequisites import check_prerequisites, install_hint
 from pbrew.core.state import get_family_state
-
-
-_REQUIRED_BINS = ["gcc", "make", "autoconf", "bison", "re2c", "pkg-config"]
 
 
 @click.command("doctor")
@@ -25,10 +22,18 @@ def doctor_cmd(ctx):
     ok_all = ok_all and py_ok
 
     click.echo("\nBinaries:")
-    for binary in _REQUIRED_BINS:
-        found = shutil.which(binary) is not None
-        _show(binary, found)
-        ok_all = ok_all and found
+    results = check_prerequisites()
+    missing = []
+    for r in results:
+        _show(r.name, r.found)
+        ok_all = ok_all and r.found
+        if not r.found:
+            missing.append(r.name)
+
+    if missing:
+        hint = install_hint()
+        if hint:
+            click.echo(f"\n  Fehlende Tools installieren:\n    {hint}")
 
     # Installierte Versionen vs. State-Konsistenz
     vdir = versions_dir(prefix)
