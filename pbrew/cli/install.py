@@ -129,7 +129,7 @@ def _check_build_libraries(variants: list[str]) -> None:
     for m in missing:
         scope = "Pflicht" if m.variant == "core" else f"für {m.variant}"
         pkg_hint = f" → {m.distro_pkg}" if m.distro_pkg else ""
-        click.echo(f"    ✗ {m.pkgconfig} ({scope}){pkg_hint}", err=True)
+        click.echo(f"    ✗ {m.name} ({scope}){pkg_hint}", err=True)
 
     cmd = build_libs.install_command(missing)
     if cmd:

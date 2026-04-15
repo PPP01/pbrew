@@ -3,65 +3,135 @@ from pbrew.core.build_libs import (
     MissingLib,
     check_required_libs,
     install_command,
-    VARIANT_PKGCONFIG,
+    LibCheck,
+    LIB_CHECKS,
+    VARIANT_LIB,
 )
 
 
 # ---------------------------------------------------------------------------
-# check_required_libs
+# check_required_libs – pkg-config-Pfad
 # ---------------------------------------------------------------------------
 
 def test_check_returns_empty_when_all_present():
-    """Alle pkg-config-Calls liefern 0 → keine fehlende Lib."""
     with patch("pbrew.core.build_libs._pkg_config_exists", return_value=True), \
+         patch("pbrew.core.build_libs._headers_exist", return_value=True), \
          patch("pbrew.core.build_libs.shutil.which", return_value="/usr/bin/pkg-config"):
         missing = check_required_libs(["openssl", "intl"])
     assert missing == []
 
 
 def test_check_finds_missing_variant_lib():
-    """Variant intl ohne icu-uc → muss als fehlend gemeldet werden."""
-    def fake_exists(pkg):
+    def fake_pkg(pkg):
         return pkg != "icu-uc"
-    with patch("pbrew.core.build_libs._pkg_config_exists", side_effect=fake_exists), \
+    with patch("pbrew.core.build_libs._pkg_config_exists", side_effect=fake_pkg), \
+         patch("pbrew.core.build_libs._headers_exist", return_value=False), \
          patch("pbrew.core.build_libs.shutil.which", return_value="/usr/bin/pkg-config"):
         missing = check_required_libs(["intl"])
-    assert any(m.pkgconfig == "icu-uc" for m in missing)
+    assert any(m.name == "icu-uc" for m in missing)
     assert any(m.variant == "intl" for m in missing)
 
 
 def test_check_includes_always_required_libs():
-    """libxml-2.0 und sqlite3 sind unabhängig von Variants Pflicht."""
     with patch("pbrew.core.build_libs._pkg_config_exists", return_value=False), \
+         patch("pbrew.core.build_libs._headers_exist", return_value=False), \
          patch("pbrew.core.build_libs.shutil.which", return_value="/usr/bin/pkg-config"):
         missing = check_required_libs([])
-    pkgs = {m.pkgconfig for m in missing}
-    assert "libxml-2.0" in pkgs
-    assert "sqlite3" in pkgs
+    names = {m.name for m in missing}
+    assert "libxml-2.0" in names
+    assert "sqlite3" in names
 
 
 def test_check_skips_unknown_variants():
-    """Variants ohne pkg-config-Mapping (z.B. bcmath) verursachen keinen Fehler."""
     with patch("pbrew.core.build_libs._pkg_config_exists", return_value=True), \
+         patch("pbrew.core.build_libs._headers_exist", return_value=True), \
          patch("pbrew.core.build_libs.shutil.which", return_value="/usr/bin/pkg-config"):
         missing = check_required_libs(["bcmath", "sockets", "exif"])
     assert missing == []
 
 
 def test_check_returns_empty_when_pkg_config_not_installed():
-    """Ohne pkg-config selbst können wir nichts prüfen – keine false-positives."""
+    """Ohne pkg-config selbst: keine Prüfung (kein false-positive)."""
     with patch("pbrew.core.build_libs.shutil.which", return_value=None):
         missing = check_required_libs(["openssl", "intl"])
     assert missing == []
 
 
 def test_check_dedups_libs_referenced_by_multiple_variants():
-    """libxml-2.0 ist core + (theoretisch auch von soap) → nur einmal gemeldet."""
     with patch("pbrew.core.build_libs._pkg_config_exists", return_value=False), \
+         patch("pbrew.core.build_libs._headers_exist", return_value=False), \
          patch("pbrew.core.build_libs.shutil.which", return_value="/usr/bin/pkg-config"):
         missing = check_required_libs(["soap"])
-    libxml_entries = [m for m in missing if m.pkgconfig == "libxml-2.0"]
+    libxml_entries = [m for m in missing if m.name == "libxml-2.0"]
     assert len(libxml_entries) == 1
+
+
+# ---------------------------------------------------------------------------
+# Header-Fallback für Libs ohne pkg-config (#39)
+# ---------------------------------------------------------------------------
+
+def test_bz2_detected_via_header(tmp_path):
+    """bz2 hat kein pkg-config – muss per Header gefunden werden."""
+    header = tmp_path / "bzlib.h"
+    header.write_text("")
+    # Patch LIB_CHECKS für bz2: benutze das tmp_path-Header
+    patched_checks = dict(LIB_CHECKS)
+    patched_checks["bz2"] = LibCheck(headers=(str(header),))
+    with patch("pbrew.core.build_libs._pkg_config_exists", return_value=True), \
+         patch("pbrew.core.build_libs.LIB_CHECKS", patched_checks), \
+         patch("pbrew.core.build_libs.shutil.which", return_value="/usr/bin/pkg-config"):
+        missing = check_required_libs(["bz2"])
+    assert not any(m.name == "bz2" for m in missing)
+
+
+def test_bz2_missing_when_no_header(tmp_path):
+    """Header existiert nicht → bz2 fehlt."""
+    patched_checks = dict(LIB_CHECKS)
+    patched_checks["bz2"] = LibCheck(headers=(str(tmp_path / "nonexistent.h"),))
+    with patch("pbrew.core.build_libs._pkg_config_exists", return_value=True), \
+         patch("pbrew.core.build_libs.LIB_CHECKS", patched_checks), \
+         patch("pbrew.core.build_libs.shutil.which", return_value="/usr/bin/pkg-config"):
+        missing = check_required_libs(["bz2"])
+    assert any(m.name == "bz2" for m in missing)
+
+
+def test_tidy_found_via_pkgconfig_only():
+    """tidy hat pkg-config + Header-Fallback. pkg-config reicht allein."""
+    with patch("pbrew.core.build_libs._pkg_config_exists", return_value=True), \
+         patch("pbrew.core.build_libs._headers_exist", return_value=False), \
+         patch("pbrew.core.build_libs.shutil.which", return_value="/usr/bin/pkg-config"):
+        missing = check_required_libs(["tidy"])
+    assert not any(m.name == "tidy" for m in missing)
+
+
+def test_tidy_found_via_header_fallback():
+    """tidy ohne pkg-config aber mit Header → nicht als fehlend melden."""
+    def fake_pkg(pkg):
+        return pkg != "tidy"  # tidy.pc fehlt auf dieser Distro
+    with patch("pbrew.core.build_libs._pkg_config_exists", side_effect=fake_pkg), \
+         patch("pbrew.core.build_libs._headers_exist", return_value=True), \
+         patch("pbrew.core.build_libs.shutil.which", return_value="/usr/bin/pkg-config"):
+        missing = check_required_libs(["tidy"])
+    assert not any(m.name == "tidy" for m in missing)
+
+
+def test_tidy_missing_when_no_pkgconfig_and_no_header():
+    with patch("pbrew.core.build_libs._pkg_config_exists", return_value=False), \
+         patch("pbrew.core.build_libs._headers_exist", return_value=False), \
+         patch("pbrew.core.build_libs.shutil.which", return_value="/usr/bin/pkg-config"):
+        missing = check_required_libs(["tidy"])
+    assert any(m.name == "tidy" for m in missing)
+
+
+def test_readline_uses_headers_only():
+    """readline hat kein pkg-config, nur Header."""
+    assert LIB_CHECKS["readline"].pkgconfig is None
+    assert LIB_CHECKS["readline"].headers
+
+
+def test_bz2_uses_headers_only():
+    assert LIB_CHECKS["bz2"].pkgconfig is None
+    assert LIB_CHECKS["bz2"].headers
 
 
 # ---------------------------------------------------------------------------
@@ -70,8 +140,8 @@ def test_check_dedups_libs_referenced_by_multiple_variants():
 
 def test_install_command_apt():
     missing = [
-        MissingLib(pkgconfig="icu-uc", variant="intl", distro_pkg="libicu-dev"),
-        MissingLib(pkgconfig="openssl", variant="openssl", distro_pkg="libssl-dev"),
+        MissingLib(name="icu-uc", variant="intl", distro_pkg="libicu-dev"),
+        MissingLib(name="openssl", variant="openssl", distro_pkg="libssl-dev"),
     ]
     with patch("pbrew.core.build_libs.detect_package_manager", return_value="apt-get"):
         cmd = install_command(missing)
@@ -82,16 +152,15 @@ def test_install_command_apt():
 
 
 def test_install_command_returns_none_without_pm():
-    missing = [MissingLib(pkgconfig="x", variant="y", distro_pkg="z")]
+    missing = [MissingLib(name="x", variant="y", distro_pkg="z")]
     with patch("pbrew.core.build_libs.detect_package_manager", return_value=None):
         assert install_command(missing) is None
 
 
 def test_install_command_skips_libs_without_distro_package():
-    """Eine Lib ohne bekanntes Distro-Paket darf den Befehl nicht zerstören."""
     missing = [
-        MissingLib(pkgconfig="x", variant="y", distro_pkg=None),
-        MissingLib(pkgconfig="openssl", variant="openssl", distro_pkg="libssl-dev"),
+        MissingLib(name="x", variant="y", distro_pkg=None),
+        MissingLib(name="openssl", variant="openssl", distro_pkg="libssl-dev"),
     ]
     with patch("pbrew.core.build_libs.detect_package_manager", return_value="apt-get"):
         cmd = install_command(missing)
@@ -104,10 +173,16 @@ def test_install_command_skips_libs_without_distro_package():
 # ---------------------------------------------------------------------------
 
 def test_all_mapped_variants_appear_in_builder_variant_flags():
-    """Jedes Variant aus VARIANT_PKGCONFIG muss auch im Builder bekannt sein."""
+    """Jedes Variant aus VARIANT_LIB muss auch im Builder bekannt sein."""
     from pbrew.core.builder import _VARIANT_FLAGS
-    for variant in VARIANT_PKGCONFIG:
+    for variant in VARIANT_LIB:
         assert variant in _VARIANT_FLAGS, f"{variant} fehlt in builder._VARIANT_FLAGS"
+
+
+def test_every_variant_lib_has_a_check():
+    """Jede in VARIANT_LIB referenzierte Lib-ID hat einen Eintrag in LIB_CHECKS."""
+    for variant, lib_id in VARIANT_LIB.items():
+        assert lib_id in LIB_CHECKS, f"Lib-ID {lib_id!r} (via {variant}) fehlt in LIB_CHECKS"
 
 
 # ---------------------------------------------------------------------------
@@ -115,15 +190,13 @@ def test_all_mapped_variants_appear_in_builder_variant_flags():
 # ---------------------------------------------------------------------------
 
 def test_install_aborts_on_missing_libs(tmp_path):
-    """install bricht ab, wenn Pre-Flight-Libs fehlen, mit Installationshinweis."""
     import os
     from click.testing import CliRunner
     from pbrew.cli import main
     from pbrew.core.resolver import PhpRelease
 
-    release = PhpRelease(version="8.4.22", family="8.4",
-                         tarball_url="x", sha256="y")
-    fake_missing = [MissingLib(pkgconfig="icu-uc", variant="intl", distro_pkg="libicu-dev")]
+    release = PhpRelease(version="8.4.22", family="8.4", tarball_url="x", sha256="y")
+    fake_missing = [MissingLib(name="icu-uc", variant="intl", distro_pkg="libicu-dev")]
 
     runner = CliRunner()
     with patch.dict(os.environ, {"XDG_CONFIG_HOME": str(tmp_path / "config")}), \
@@ -139,15 +212,13 @@ def test_install_aborts_on_missing_libs(tmp_path):
 
 
 def test_install_skips_lib_check_with_flag(tmp_path):
-    """--skip-lib-check überspringt den Check komplett."""
     import os
     from click.testing import CliRunner
     from pbrew.cli import main
     from pbrew.core.resolver import PhpRelease
 
-    release = PhpRelease(version="8.4.22", family="8.4",
-                         tarball_url="x", sha256="y")
-    fake_missing = [MissingLib(pkgconfig="icu-uc", variant="intl", distro_pkg="libicu-dev")]
+    release = PhpRelease(version="8.4.22", family="8.4", tarball_url="x", sha256="y")
+    fake_missing = [MissingLib(name="icu-uc", variant="intl", distro_pkg="libicu-dev")]
 
     runner = CliRunner()
     with patch.dict(os.environ, {"XDG_CONFIG_HOME": str(tmp_path / "config")}), \
@@ -156,7 +227,5 @@ def test_install_skips_lib_check_with_flag(tmp_path):
          patch("pbrew.cli.install.dl_mod.download", side_effect=RuntimeError("download blockt")):
         result = runner.invoke(main, ["--prefix", str(tmp_path / "pbrew"), "install", "8.4", "--skip-lib-check"])
 
-    # Check darf nicht aufgerufen worden sein
     mock_check.assert_not_called()
-    # Wir scheitern stattdessen am Download (das ist OK – beweist, dass der Check übersprungen wurde)
     assert "icu-uc" not in result.output
