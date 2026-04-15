@@ -71,23 +71,22 @@ def install_cmd(ctx, version_spec, config_name, save, jobs):
     cli_ini_dir(prefix, family).mkdir(parents=True, exist_ok=True)
     confd_dir(prefix, family).mkdir(parents=True, exist_ok=True)
 
-    click.echo(f"  Baue PHP {version} mit {num_jobs} Jobs...")
-    start = time.monotonic()
+    click.echo(f"\n  Baue PHP {version} mit {num_jobs} Jobs")
+    click.echo(f"  Build-Log: {log_path}")
+    click.echo(f"  (Live verfolgen: tail -f {log_path})\n")
 
+    start = time.monotonic()
     with open(log_path, "w") as log:
-        try:
-            args = builder.build_configure_args(prefix, version, family, config)
-            builder.run_configure(build_dir, args, log)
-            builder.run_make(build_dir, num_jobs, log)
-            builder.run_make_install(build_dir, log)
-        except Exception as exc:
-            shutil.rmtree(build_dir, ignore_errors=True)
-            click.echo(f"\n  Fehler beim Build. Log: {log_path}", err=True)
-            click.echo(f"  {exc}", err=True)
-            sys.exit(1)
+        args = builder.build_configure_args(prefix, version, family, config)
+        _run_phase("configure", lambda: builder.run_configure(build_dir, args, log),
+                   build_dir, log_path)
+        _run_phase(f"make -j{num_jobs}", lambda: builder.run_make(build_dir, num_jobs, log),
+                   build_dir, log_path)
+        _run_phase("make install", lambda: builder.run_make_install(build_dir, log),
+                   build_dir, log_path)
 
     duration = time.monotonic() - start
-    click.echo(f"  Build abgeschlossen ({duration:.0f}s)")
+    click.echo(f"\n  Build abgeschlossen ({_fmt_duration(duration)})")
 
     _init_php_ini(prefix, version, family)
 
@@ -114,6 +113,31 @@ def install_cmd(ctx, version_spec, config_name, save, jobs):
         click.echo("  Warnung: Einige Checks fehlgeschlagen. Log: " + str(log_path), err=True)
 
     click.echo(f"✓ PHP {version} installiert.")
+
+
+def _run_phase(name: str, action, build_dir: Path, log_path: Path) -> None:
+    """Führt eine Build-Phase aus, misst die Zeit und berichtet Erfolg/Fehler."""
+    click.echo(f"  → {name}...", nl=False)
+    phase_start = time.monotonic()
+    try:
+        action()
+    except Exception as exc:
+        elapsed = time.monotonic() - phase_start
+        click.echo(f" ✗ ({_fmt_duration(elapsed)})")
+        click.echo(f"\n  Fehler in Phase '{name}' nach {_fmt_duration(elapsed)}", err=True)
+        click.echo(f"  Log: {log_path}", err=True)
+        click.echo(f"  {exc}", err=True)
+        shutil.rmtree(build_dir, ignore_errors=True)
+        sys.exit(1)
+    elapsed = time.monotonic() - phase_start
+    click.echo(f" ✓ ({_fmt_duration(elapsed)})")
+
+
+def _fmt_duration(seconds: float) -> str:
+    if seconds < 60:
+        return f"{seconds:.0f}s"
+    minutes, secs = divmod(int(seconds), 60)
+    return f"{minutes}m {secs}s"
 
 
 def _init_php_ini(prefix: Path, version: str, family: str) -> None:
