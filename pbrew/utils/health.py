@@ -39,7 +39,7 @@ def check_extensions_loaded(php_bin: Path, expected: list[str]) -> list[CheckRes
             for ext in expected
         ]
     except Exception as exc:
-        return [CheckResult("php -m", False, str(exc))]
+        return [CheckResult(f"ext:{ext}", False, str(exc)) for ext in expected]
 
 
 def check_fpm_config(fpm_bin: Path, ini: Path, fpm_conf: Path) -> CheckResult:
