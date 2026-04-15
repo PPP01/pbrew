@@ -1,0 +1,62 @@
+import json
+from datetime import datetime, timezone
+from pathlib import Path
+
+
+def _load(path: Path) -> dict:
+    if not path.exists():
+        return {}
+    with open(path) as f:
+        return json.load(f)
+
+
+def _save(path: Path, data: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w") as f:
+        json.dump(data, f, indent=2, default=str)
+
+
+def get_family_state(state_file: Path) -> dict:
+    return _load(state_file)
+
+
+def set_active_version(
+    state_file: Path,
+    version: str,
+    config: str = "default",
+) -> None:
+    state = _load(state_file)
+    if "active" in state and state["active"] != version:
+        state["previous"] = state["active"]
+    state["active"] = version
+    state["config"] = config
+    state.setdefault("installed", {})[version] = {
+        "installed_at": datetime.now(timezone.utc).isoformat(),
+    }
+    _save(state_file, state)
+
+
+def set_build_duration(state_file: Path, version: str, seconds: float) -> None:
+    state = _load(state_file)
+    state.setdefault("installed", {}).setdefault(version, {})
+    state["installed"][version]["build_duration_seconds"] = round(seconds)
+    _save(state_file, state)
+
+
+def add_extension(state_file: Path, extension: str) -> None:
+    state = _load(state_file)
+    extensions: list = state.get("extensions", [])
+    if extension not in extensions:
+        extensions.append(extension)
+    state["extensions"] = extensions
+    _save(state_file, state)
+
+
+def get_global_state(global_state_file: Path) -> dict:
+    return _load(global_state_file)
+
+
+def set_global_default(global_state_file: Path, family: str) -> None:
+    state = _load(global_state_file)
+    state["default_family"] = family
+    _save(global_state_file, state)
