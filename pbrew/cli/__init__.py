@@ -10,6 +10,7 @@ from pbrew.cli.doctor import doctor_cmd
 from pbrew.cli.init_ import init_cmd
 from pbrew.cli.cleanup import cleanup_cmd
 from pbrew.cli.update import update_cmd
+from pbrew.cli.info import info_cmd
 
 
 @click.group()
@@ -35,3 +36,4 @@ main.add_command(doctor_cmd, name="doctor")
 main.add_command(init_cmd, name="init")
 main.add_command(cleanup_cmd, name="cleanup")
 main.add_command(update_cmd, name="update")
+main.add_command(info_cmd, name="info")
