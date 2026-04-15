@@ -46,6 +46,7 @@ def _invoke_install(prefix, tmp_path, version="8.4.22"):
     env = {"XDG_CONFIG_HOME": str(tmp_path / "config")}
     with patch.dict(os.environ, env), \
          patch("pbrew.cli.install.resolver.fetch_latest", return_value=_make_release(version)), \
+         patch("pbrew.cli.install.build_libs.check_required_libs", return_value=[]), \
          patch("pbrew.cli.install.builder.run_configure", return_value=None) as mc, \
          patch("pbrew.cli.install.builder.run_make", return_value=None) as mm, \
          patch("pbrew.cli.install.builder.run_make_install",
@@ -98,6 +99,7 @@ def test_error_in_configure_reports_which_phase(tmp_path):
     env = {"XDG_CONFIG_HOME": str(tmp_path / "config")}
     with patch.dict(os.environ, env), \
          patch("pbrew.cli.install.resolver.fetch_latest", return_value=_make_release()), \
+         patch("pbrew.cli.install.build_libs.check_required_libs", return_value=[]), \
          patch("pbrew.cli.install.builder.run_configure",
                side_effect=RuntimeError("bison not found")):
         result = runner.invoke(main, ["--prefix", str(prefix), "install", "8.4"])
