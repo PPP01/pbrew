@@ -16,3 +16,6 @@ build/
 
 # Claude Code — Memory (benutzerspezifisch)
 .claude/memory/
+
+# Git Worktrees
+.worktrees/
