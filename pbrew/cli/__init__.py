@@ -1,4 +1,5 @@
 import click
+from pbrew.cli.install import install_cmd
 
 
 @click.group()
@@ -10,3 +11,6 @@ def main(ctx, prefix):
     from pbrew.core.paths import get_prefix
     from pathlib import Path
     ctx.obj["prefix"] = Path(prefix) if prefix else get_prefix()
+
+
+main.add_command(install_cmd, name="install")
