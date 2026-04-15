@@ -79,6 +79,15 @@ def record_install(
     _save(state_file, state)
 
 
+def remove_install(state_file: Path, version: str) -> None:
+    """Entfernt den installed-Eintrag einer Version und bereinigt previous."""
+    state = _load(state_file)
+    state.get("installed", {}).pop(version, None)
+    if state.get("previous") == version:
+        state.pop("previous", None)
+    _save(state_file, state)
+
+
 def add_extension(state_file: Path, extension: str) -> None:
     state = _load(state_file)
     extensions: list = state.get("extensions", [])
