@@ -26,6 +26,10 @@ def log_cmd(ctx, version_spec, tail):
         raise SystemExit(1)
 
     if tail:
-        subprocess.run(["tail", "-f", str(log)])
+        try:
+            subprocess.run(["tail", "-f", str(log)], check=True)
+        except FileNotFoundError:
+            click.echo("'tail' nicht gefunden. Log-Datei: " + str(log), err=True)
+            raise SystemExit(1)
     else:
         click.echo(log.read_text())

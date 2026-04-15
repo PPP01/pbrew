@@ -47,6 +47,9 @@ def load_config(
 ) -> dict:
     """Lädt Config mit Cascade: DEFAULT < default.toml < {family}.toml < {named}.toml."""
     import copy
+    import re
+    if named and not re.fullmatch(r"[a-zA-Z0-9_\-]+", named):
+        raise ValueError(f"Ungültiger Config-Name: {named!r} (nur a-z, A-Z, 0-9, _ und - erlaubt)")
     config = copy.deepcopy(DEFAULT_CONFIG)
     config = _deep_merge(config, _load_toml(configs_dir / "default.toml"))
     config = _deep_merge(config, _load_toml(configs_dir / f"{family}.toml"))

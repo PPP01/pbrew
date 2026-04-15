@@ -26,11 +26,14 @@ def _parse_release(version: str, release_data: dict) -> "PhpRelease | None":
     bz2 = next((s for s in sources if s.get("filename", "").endswith(".tar.bz2")), None)
     if not bz2:
         return None
+    sha256 = bz2.get("sha256", "")
+    if not sha256:
+        return None  # Kein Hash → Release ablehnen, SHA-256-Prüfung wäre nicht möglich
     return PhpRelease(
         version=version,
         family=f"{parts[0]}.{parts[1]}",
         tarball_url=f"https://www.php.net/distributions/{bz2['filename']}",
-        sha256=bz2.get("sha256", ""),
+        sha256=sha256,
     )
 
 
@@ -38,6 +41,8 @@ def fetch_latest(family: str) -> PhpRelease:
     """Gibt die neueste Version einer PHP-Family zurück (z.B. '8.4')."""
     url = f"{PHP_RELEASES_URL}?json=1&version={family}&max=1"
     data = _fetch_json(url)
+    if not data:
+        raise RuntimeError(f"Keine Releases für PHP {family} gefunden")
     version = next(iter(data))
     release = _parse_release(version, data[version])
     if release is None:

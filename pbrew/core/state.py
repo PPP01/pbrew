@@ -24,7 +24,7 @@ def _save(path: Path, data: dict) -> None:
         with os.fdopen(fd, "w") as f:
             json.dump(data, f, indent=2, default=str)
         os.replace(tmp, path)
-    except:
+    except Exception:
         os.unlink(tmp)
         raise
 

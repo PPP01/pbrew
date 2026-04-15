@@ -18,10 +18,9 @@ def use_cmd(ctx, version_spec):
         click.echo(f"PHP {family} ist nicht installiert. Zuerst: pbrew install {family}", err=True)
         raise SystemExit(1)
 
-    suffix = family.replace(".", "")
     click.echo(f"export PBREW_PHP={family}")
-    click.echo(f"export PATH={prefix / 'bin'}:$PATH")
-    click.echo(f"hash -r")
+    click.echo(f'export PATH="{prefix / "bin"}:$PATH"')
+    click.echo("hash -r")
 
 
 @click.command("switch")
