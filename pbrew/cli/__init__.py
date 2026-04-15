@@ -14,6 +14,7 @@ from pbrew.cli.info import info_cmd
 from pbrew.cli.env import env_cmd
 from pbrew.cli.outdated import outdated_cmd
 from pbrew.cli.fpm import fpm_cmd
+from pbrew.cli.ext import ext_cmd
 
 
 @click.group()
@@ -43,3 +44,4 @@ main.add_command(info_cmd, name="info")
 main.add_command(env_cmd, name="env")
 main.add_command(outdated_cmd, name="outdated")
 main.add_command(fpm_cmd, name="fpm")
+main.add_command(ext_cmd, name="ext")
