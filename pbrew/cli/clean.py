@@ -2,7 +2,7 @@ import shutil
 from pathlib import Path
 import click
 from pbrew.core.paths import family_from_version, version_dir, state_file
-from pbrew.core.state import get_family_state
+from pbrew.core.state import get_family_state, remove_install
 
 
 @click.command("clean")
@@ -33,4 +33,5 @@ def clean_cmd(ctx, version, yes):
         return
 
     shutil.rmtree(vdir)
-    click.echo(f"✓ PHP {version} entfernt.")
+    remove_install(sf, version)
+    click.echo(f"✓ PHP {version} entfernt (Verzeichnis + State).")
