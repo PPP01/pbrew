@@ -92,7 +92,12 @@ def install_cmd(ctx, version_spec, config_name, save, jobs):
     _init_php_ini(prefix, version, family)
 
     sf = state_file(prefix, family)
-    state_mod.record_install(sf, version, config=config_name or "default", duration=duration)
+    state_mod.record_install(
+        sf, version,
+        config=config_name or "default",
+        duration=duration,
+        variants=config.get("build", {}).get("variants"),
+    )
 
     write_versioned_wrappers(prefix, version, family)
     if not (prefix / "bin" / "php").exists():

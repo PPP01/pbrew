@@ -61,8 +61,9 @@ def record_install(
     version: str,
     config: str = "default",
     duration: float | None = None,
+    variants: "list[str] | None" = None,
 ) -> None:
-    """Setzt active, config, installed_at und optional build_duration in einem Write."""
+    """Setzt active, config, installed_at, variants und optional build_duration in einem Write."""
     state = _load(state_file)
     if "active" in state and state["active"] != version:
         state["previous"] = state["active"]
@@ -70,6 +71,9 @@ def record_install(
     state["config"] = config
     entry = state.setdefault("installed", {}).setdefault(version, {})
     entry["installed_at"] = datetime.now(timezone.utc).isoformat()
+    entry["config_name"] = config
+    if variants is not None:
+        entry["variants"] = variants
     if duration is not None:
         entry["build_duration_seconds"] = round(duration)
     _save(state_file, state)
