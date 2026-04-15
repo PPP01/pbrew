@@ -106,6 +106,11 @@ def install_cmd(ctx, version_spec, config_name, save, jobs, skip_lib_check):
     if not (prefix / "bin" / "php").exists():
         write_naked_wrappers(prefix, version, family)
 
+    # FPM-Setup: Pool-Dirs, php-fpm.conf, systemd-Unit (+ Debug-Wrapper wenn xdebug aktiv)
+    from pbrew.cli.fpm import setup_fpm
+    xdebug_enabled = config.get("xdebug", {}).get("enabled", False)
+    setup_fpm(prefix, version, family, xdebug=xdebug_enabled)
+
     click.echo("  Health-Check...")
     results = run_basic_checks(prefix, version, family, config)
     for r in results:
