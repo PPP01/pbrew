@@ -28,8 +28,8 @@ def list_cmd(ctx):
     global_state = get_global_state(global_state_file(prefix))
     default_family = global_state.get("default_family", "")
 
-    click.echo(f"\n{'Family':<8} {'Aktiv':<12} {'Vorherige':<12} {'Wrapper':<10} {'Extensions'}")
-    click.echo("─" * 70)
+    click.echo(f"\n{'Family':<8} {'Aktiv':<12} {'Config':<12} {'Vorherige':<12} {'Wrapper':<10} {'Extensions'}")
+    click.echo("─" * 82)
 
     for family in sorted(installed_versions):
         sf = state_file(prefix, family)
@@ -37,9 +37,13 @@ def list_cmd(ctx):
         active = state.get("active", "—")
         previous = state.get("previous", "—")
         suffix = family_suffix(family)
+        config_name = state.get("installed", {}).get(active, {}).get("config_name") or "—"
         extensions = ", ".join(state.get("extensions", [])) or "—"
         default_mark = " *" if family == default_family else ""
-        click.echo(f"  {family:<8} {active:<12} {previous:<12} php{suffix:<7} {extensions}{default_mark}")
+        click.echo(
+            f"  {family:<8} {active:<12} {config_name:<12} {previous:<12} "
+            f"php{suffix:<7} {extensions}{default_mark}"
+        )
 
     if default_family:
         click.echo(f"\n  * php{family_suffix(default_family)} ist der aktuelle Default")
