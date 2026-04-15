@@ -15,6 +15,7 @@ from pbrew.cli.env import env_cmd
 from pbrew.cli.outdated import outdated_cmd
 from pbrew.cli.fpm import fpm_cmd
 from pbrew.cli.ext import ext_cmd
+from pbrew.cli.upgrade import upgrade_cmd, rollback_cmd
 
 
 @click.group()
@@ -45,3 +46,5 @@ main.add_command(env_cmd, name="env")
 main.add_command(outdated_cmd, name="outdated")
 main.add_command(fpm_cmd, name="fpm")
 main.add_command(ext_cmd, name="ext")
+main.add_command(upgrade_cmd, name="upgrade")
+main.add_command(rollback_cmd, name="rollback")
