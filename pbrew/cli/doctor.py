@@ -1,5 +1,5 @@
 import shutil
-import subprocess
+import sys
 from pathlib import Path
 
 import click
@@ -22,7 +22,6 @@ def doctor_cmd(ctx):
     click.echo("Prüfe pbrew-Installation...\n")
 
     # Python-Version
-    import sys
     py_ok = sys.version_info >= (3, 11)
     _show("Python " + sys.version.split()[0], py_ok)
     ok_all = ok_all and py_ok
@@ -47,7 +46,8 @@ def doctor_cmd(ctx):
                 sf = state_file(prefix, family)
                 state = get_family_state(sf)
                 active = state.get("active") == entry.name
-                _show(f"{entry.name} {'(aktiv)' if active else ''}", True)
+                suffix = " (aktiv)" if active else ""
+                _show(f"{entry.name}{suffix}", True)
     else:
         click.echo("\n  Keine Versionen installiert.")
 
