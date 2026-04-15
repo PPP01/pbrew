@@ -37,8 +37,11 @@ source .venv/bin/activate
 # Dependencies installieren
 pip install -e ".[dev]"
 
-# Tests ausführen
+# Tests ausführen (ohne Integrationstests)
 pytest -v
+
+# Integrationstests (bauen echtes PHP, ca. 3-5 Minuten)
+pytest -m integration -v -s
 
 # pbrew direkt ausführen
 pbrew --help
