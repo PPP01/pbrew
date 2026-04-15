@@ -1,5 +1,5 @@
 import click
-from pbrew.core.paths import get_prefix, bin_dir
+from pbrew.core.paths import bin_dir
 
 
 _BASH_INIT = '''\
