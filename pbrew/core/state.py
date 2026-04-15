@@ -1,4 +1,6 @@
 import json
+import os
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -6,14 +8,25 @@ from pathlib import Path
 def _load(path: Path) -> dict:
     if not path.exists():
         return {}
-    with open(path) as f:
-        return json.load(f)
+    try:
+        with open(path) as f:
+            return json.load(f)
+    except json.JSONDecodeError as e:
+        raise RuntimeError(
+            f"State-Datei '{path}' ist beschädigt und kann nicht gelesen werden: {e}"
+        ) from e
 
 
 def _save(path: Path, data: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w") as f:
-        json.dump(data, f, indent=2, default=str)
+    fd, tmp = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w") as f:
+            json.dump(data, f, indent=2, default=str)
+        os.replace(tmp, path)
+    except:
+        os.unlink(tmp)
+        raise
 
 
 def get_family_state(state_file: Path) -> dict:
@@ -30,9 +43,9 @@ def set_active_version(
         state["previous"] = state["active"]
     state["active"] = version
     state["config"] = config
-    state.setdefault("installed", {})[version] = {
-        "installed_at": datetime.now(timezone.utc).isoformat(),
-    }
+    state.setdefault("installed", {}).setdefault(version, {})["installed_at"] = (
+        datetime.now(timezone.utc).isoformat()
+    )
     _save(state_file, state)
 
 
