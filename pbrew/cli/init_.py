@@ -11,11 +11,18 @@ from pbrew.core.paths import (
     state_dir,
     versions_dir,
 )
+from pbrew.core.shell import (
+    SHELL_MAP,
+    _rc_file_for,
+    already_integrated,
+    append_shell_integration,
+    detect_shell,
+)
 
 
 @click.command("init")
 def init_cmd():
-    """Richtet pbrew ein: Prefix wählen und Verzeichnisse anlegen."""
+    """Richtet pbrew ein: Prefix wählen, Verzeichnisse anlegen, Shell integrieren."""
     current_default = get_prefix()
 
     chosen = click.prompt("Installationspräfix", default=str(current_default))
@@ -36,7 +43,40 @@ def init_cmd():
 
     write_prefix(prefix)
     click.echo(f"\nKonfiguration gespeichert: {global_config_file()}")
+
+    _setup_shell_integration()
+
     click.echo("\npbrew ist eingerichtet. Weiter mit:")
     click.echo("  pbrew doctor        — Build-Voraussetzungen prüfen")
     click.echo("  pbrew known         — Verfügbare PHP-Versionen anzeigen")
     click.echo("  pbrew install 8.4   — PHP 8.4 installieren")
+
+
+def _setup_shell_integration() -> None:
+    click.echo("\nShell-Integration:")
+    shell = detect_shell()
+    if shell is None:
+        click.echo("  Shell nicht erkannt – bitte manuell einrichten.")
+        _print_manual_hint(None)
+        return
+
+    rc_file = _rc_file_for(shell)
+    snippet = SHELL_MAP[shell]["snippet"]
+
+    if already_integrated(rc_file):
+        click.echo(f"  ✓ Bereits in {rc_file} eingetragen.")
+        return
+
+    if click.confirm(f"  Integration in {rc_file} eintragen?", default=True):
+        append_shell_integration(rc_file, snippet)
+        click.echo(f"  ✓ Eingetragen. Shell neu starten oder: source {rc_file}")
+    else:
+        _print_manual_hint(shell)
+
+
+def _print_manual_hint(shell: "str | None") -> None:
+    if shell and shell in SHELL_MAP:
+        snippet = SHELL_MAP[shell]["snippet"]
+        click.echo(f"  Manuell in die RC-Datei eintragen:\n    {snippet}")
+    else:
+        click.echo("  Manuell in die RC-Datei eintragen: eval \"$(pbrew shell-init bash|zsh)\"")
