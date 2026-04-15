@@ -3,10 +3,17 @@ from pathlib import Path
 
 
 def get_prefix() -> Path:
-    """Gibt das pbrew-Prefix zurück (PBREW_ROOT env oder ~/.pbrew)."""
+    """Gibt das pbrew-Prefix zurück.
+
+    Priorität: PBREW_ROOT-Env > ~/.config/pbrew/config.toml > ~/.pbrew
+    """
     env = os.environ.get("PBREW_ROOT")
     if env:
         return Path(env)
+    from pbrew.core.global_config import read_configured_prefix
+    configured = read_configured_prefix()
+    if configured:
+        return configured
     return Path.home() / ".pbrew"
 
 
@@ -53,6 +60,10 @@ def fpm_ini_dir(prefix: Path, family: str) -> Path:
 
 def confd_dir(prefix: Path, family: str) -> Path:
     return etc_dir(prefix) / "conf.d" / family
+
+
+def distfiles_dir(prefix: Path) -> Path:
+    return prefix / "distfiles"
 
 
 def configs_dir(prefix: Path) -> Path:
