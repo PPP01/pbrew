@@ -11,6 +11,7 @@ from pbrew.cli.init_ import init_cmd
 from pbrew.cli.cleanup import cleanup_cmd
 from pbrew.cli.update import update_cmd
 from pbrew.cli.info import info_cmd
+from pbrew.cli.env import env_cmd
 
 
 @click.group()
@@ -37,3 +38,4 @@ main.add_command(init_cmd, name="init")
 main.add_command(cleanup_cmd, name="cleanup")
 main.add_command(update_cmd, name="update")
 main.add_command(info_cmd, name="info")
+main.add_command(env_cmd, name="env")
