@@ -74,3 +74,15 @@ def test_fetch_known_sorted_descending():
         releases = fetch_known(8)
     versions = [r.version for r in releases]
     assert versions == sorted(versions, reverse=True)
+
+
+def test_fetch_known_numeric_sort_single_digit_patch():
+    """String-Sort würde '8.3.9' nach '8.3.10' einordnen – numerisch muss 8.3.10 > 8.3.9."""
+    mock_data = {
+        "8.3.10": {"source": [{"filename": "php-8.3.10.tar.bz2", "sha256": "x", "md5": "y"}]},
+        "8.3.9": {"source": [{"filename": "php-8.3.9.tar.bz2", "sha256": "x", "md5": "y"}]},
+    }
+    with patch("pbrew.core.resolver.urllib.request.urlopen", return_value=_mock_urlopen(mock_data)):
+        releases = fetch_known(8)
+    assert releases[0].version == "8.3.10"
+    assert releases[1].version == "8.3.9"

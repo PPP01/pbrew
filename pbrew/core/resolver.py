@@ -54,4 +54,4 @@ def fetch_known(major: int = 8) -> list[PhpRelease]:
         release = _parse_release(version, release_data)
         if release:
             releases.append(release)
-    return sorted(releases, key=lambda r: r.version, reverse=True)
+    return sorted(releases, key=lambda r: tuple(int(x) for x in r.version.split(".")), reverse=True)
