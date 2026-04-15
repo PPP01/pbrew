@@ -58,6 +58,53 @@ def test_update_triggers_install_when_newer(tmp_path):
 
 
 # ---------------------------------------------------------------------------
+# pbrew update — Config-Name aus State übernehmen (#17)
+# ---------------------------------------------------------------------------
+
+def test_update_reuses_config_name_from_state(tmp_path):
+    """update muss den config_name des aktiven Builds an install weitergeben."""
+    from pbrew.cli.install import install_cmd
+    state_dir = tmp_path / "state"
+    state_dir.mkdir(parents=True, exist_ok=True)
+    (state_dir / "8.4.json").write_text(json.dumps({
+        "active": "8.4.21",
+        "installed": {
+            "8.4.21": {"config_name": "dev", "variants": ["default", "fpm"]},
+        },
+    }))
+
+    runner = CliRunner()
+    with patch("pbrew.cli.update.fetch_latest", return_value=_make_release("8.4.22")), \
+         patch.dict(os.environ, {"XDG_CONFIG_HOME": str(tmp_path / "config")}), \
+         patch.object(install_cmd, "callback") as mock_callback:
+        result = runner.invoke(main, ["--prefix", str(tmp_path), "update", "8.4"])
+    assert result.exit_code == 0, result.output
+    mock_callback.assert_called_once()
+    assert mock_callback.call_args.kwargs.get("config_name") == "dev"
+
+
+def test_update_falls_back_to_legacy_top_level_config(tmp_path):
+    """Altinstalls ohne config_name im installed-Eintrag nutzen state['config']."""
+    from pbrew.cli.install import install_cmd
+    state_dir = tmp_path / "state"
+    state_dir.mkdir(parents=True, exist_ok=True)
+    (state_dir / "8.4.json").write_text(json.dumps({
+        "active": "8.4.21",
+        "config": "prod",
+        "installed": {"8.4.21": {}},
+    }))
+
+    runner = CliRunner()
+    with patch("pbrew.cli.update.fetch_latest", return_value=_make_release("8.4.22")), \
+         patch.dict(os.environ, {"XDG_CONFIG_HOME": str(tmp_path / "config")}), \
+         patch.object(install_cmd, "callback") as mock_callback:
+        result = runner.invoke(main, ["--prefix", str(tmp_path), "update", "8.4"])
+    assert result.exit_code == 0, result.output
+    mock_callback.assert_called_once()
+    assert mock_callback.call_args.kwargs.get("config_name") == "prod"
+
+
+# ---------------------------------------------------------------------------
 # pbrew update — family noch nicht installiert
 # ---------------------------------------------------------------------------
 

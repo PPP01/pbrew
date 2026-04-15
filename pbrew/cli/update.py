@@ -32,5 +32,11 @@ def update_cmd(ctx, version_spec):
         click.echo(f"✓ PHP {family} ist bereits aktuell ({active}).")
         return
 
+    config_name = state.get("installed", {}).get(active, {}).get("config_name") or state.get("config")
+    if config_name == "default":
+        config_name = None
+
     click.echo(f"  Aktuell: {active}  →  Neu: {release.version}")
-    ctx.invoke(install_cmd, version_spec=release.version, config_name=None, save=False, jobs=None)
+    if config_name:
+        click.echo(f"  Config:  {config_name}")
+    ctx.invoke(install_cmd, version_spec=release.version, config_name=config_name, save=False, jobs=None)
