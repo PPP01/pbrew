@@ -62,3 +62,17 @@ def test_init_default_config_does_not_overwrite(tmp_path):
     init_default_config(configs)
     loaded = tomlkit.loads((configs / "default.toml").read_text())
     assert loaded["build"]["jobs"] == 99
+
+
+def test_load_config_deep_merges_fpm_pool_defaults(tmp_path):
+    configs = tmp_path / "configs"
+    configs.mkdir()
+    # Override nur pm_max_children, alle anderen pool_defaults sollen erhalten bleiben
+    override = {"fpm": {"pool_defaults": {"pm_max_children": 10}}}
+    (configs / "8.4.toml").write_text(tomlkit.dumps(override))
+
+    cfg = load_config(configs, "8.4")
+    assert cfg["fpm"]["pool_defaults"]["pm_max_children"] == 10
+    # Default-Werte der anderen Keys müssen erhalten bleiben
+    assert cfg["fpm"]["pool_defaults"]["pm"] == "dynamic"
+    assert cfg["fpm"]["pool_defaults"]["pm_start_servers"] == 2

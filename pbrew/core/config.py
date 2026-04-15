@@ -37,7 +37,7 @@ def _deep_merge(base: dict, override: dict) -> dict:
 def _load_toml(path: Path) -> dict:
     if not path.exists():
         return {}
-    return dict(tomlkit.loads(path.read_text()))
+    return tomlkit.loads(path.read_text()).unwrap()
 
 
 def load_config(
