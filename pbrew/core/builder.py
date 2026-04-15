@@ -54,7 +54,7 @@ def build_configure_args(
         args.append(f"{flag}{variant}")
 
     # Extra-Optionen (außer bereits verarbeitete)
-    skip = {"with-config-file-path", "with-config-file-scan-dir"}
+    skip = {"prefix", "with-config-file-path", "with-config-file-scan-dir"}
     for key, value in extra.items():
         if key in skip:
             continue
