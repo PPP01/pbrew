@@ -34,13 +34,29 @@ pbrew() {{
 '''
 
 
+_FISH_INIT = '''\
+# pbrew shell integration — automatisch generiert von "pbrew shell-init fish"
+set -x PBREW_ROOT "{prefix}"
+fish_add_path "{bin_dir}"
+
+function pbrew
+    if test "$argv[1]" = "use" -o "$argv[1]" = "switch"
+        eval (command pbrew $argv)
+    else
+        command pbrew $argv
+    end
+end
+'''
+
+
 @click.command("shell-init")
-@click.argument("shell", type=click.Choice(["bash", "zsh"]))
+@click.argument("shell", type=click.Choice(["bash", "zsh", "fish"]))
 @click.pass_context
 def shell_init_cmd(ctx, shell):
     """Gibt Shell-Integration aus (in ~/.bashrc oder ~/.zshrc einbinden)."""
     prefix = ctx.obj["prefix"]
-    template = _BASH_INIT if shell == "bash" else _ZSH_INIT
+    templates = {"bash": _BASH_INIT, "zsh": _ZSH_INIT, "fish": _FISH_INIT}
+    template = templates[shell]
     click.echo(template.format(
         prefix=prefix,
         bin_dir=bin_dir(prefix),
