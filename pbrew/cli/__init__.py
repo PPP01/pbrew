@@ -6,6 +6,7 @@ from pbrew.cli.known import known_cmd
 from pbrew.cli.clean import clean_cmd
 from pbrew.cli.log_ import log_cmd
 from pbrew.cli.shell_init import shell_init_cmd
+from pbrew.cli.doctor import doctor_cmd
 
 
 @click.group()
@@ -27,3 +28,4 @@ main.add_command(known_cmd, name="known")
 main.add_command(clean_cmd, name="clean")
 main.add_command(log_cmd, name="log")
 main.add_command(shell_init_cmd, name="shell-init")
+main.add_command(doctor_cmd, name="doctor")
