@@ -126,7 +126,14 @@ def _run_phase(name: str, action, build_dir: Path, log_path: Path) -> None:
         click.echo(f" ✗ ({_fmt_duration(elapsed)})")
         click.echo(f"\n  Fehler in Phase '{name}' nach {_fmt_duration(elapsed)}", err=True)
         click.echo(f"  Log: {log_path}", err=True)
-        click.echo(f"  {exc}", err=True)
+
+        errors = _extract_errors_from_log(log_path)
+        if errors:
+            click.echo("\n  Letzte Fehlerzeilen aus dem Log:", err=True)
+            for line in errors:
+                click.echo(f"    {line}", err=True)
+
+        click.echo(f"\n  {exc}", err=True)
         shutil.rmtree(build_dir, ignore_errors=True)
         sys.exit(1)
     elapsed = time.monotonic() - phase_start
@@ -138,6 +145,45 @@ def _fmt_duration(seconds: float) -> str:
         return f"{seconds:.0f}s"
     minutes, secs = divmod(int(seconds), 60)
     return f"{minutes}m {secs}s"
+
+
+def _extract_errors_from_log(
+    log_path: Path,
+    max_matches: int = 5,
+    context_after: int = 2,
+    fallback_tail: int = 15,
+) -> list[str]:
+    """Extrahiert aussagekräftige Fehlerzeilen aus einem Build-Log.
+
+    Strategie:
+    1. Case-insensitive nach 'error:'-Treffern suchen, die letzten `max_matches`
+       nehmen und je `context_after` Folgezeilen als Kontext anhängen
+    2. Kein Match → die letzten `fallback_tail` Zeilen zurückgeben
+    3. Log fehlt oder leer → leere Liste
+    """
+    if not log_path.exists():
+        return []
+    try:
+        lines = log_path.read_text(errors="replace").splitlines()
+    except OSError:
+        return []
+    if not lines:
+        return []
+
+    error_indices = [i for i, line in enumerate(lines) if "error:" in line.lower()]
+
+    if not error_indices:
+        return lines[-fallback_tail:]
+
+    selected: list[str] = []
+    seen: set[int] = set()
+    for idx in error_indices[-max_matches:]:
+        for offset in range(context_after + 1):
+            i = idx + offset
+            if i < len(lines) and i not in seen:
+                selected.append(lines[i])
+                seen.add(i)
+    return selected
 
 
 def _init_php_ini(prefix: Path, version: str, family: str) -> None:
