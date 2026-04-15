@@ -13,6 +13,7 @@ from pbrew.core.paths import (
     state_dir,
     versions_dir,
 )
+from pbrew.core.prerequisites import check_prerequisites, install_hint
 from pbrew.core.shell import (
     SHELL_MAP,
     _rc_file_for,
@@ -54,11 +55,28 @@ def init_cmd():
     click.echo(f"\nKonfiguration gespeichert: {global_config_file()}")
 
     _setup_shell_integration()
+    _check_build_prerequisites()
 
     click.echo("\npbrew ist eingerichtet. Weiter mit:")
-    click.echo("  pbrew doctor        — Build-Voraussetzungen prüfen")
     click.echo("  pbrew known         — Verfügbare PHP-Versionen anzeigen")
     click.echo("  pbrew install 8.4   — PHP 8.4 installieren")
+
+
+def _check_build_prerequisites() -> None:
+    click.echo("\nBuild-Voraussetzungen:")
+    results = check_prerequisites()
+    missing = [r.name for r in results if not r.found]
+    for r in results:
+        icon = "✓" if r.found else "✗"
+        click.echo(f"  {icon} {r.name}")
+    if missing:
+        hint = install_hint()
+        if hint:
+            click.echo(f"\n  Fehlende Tools installieren:\n    {hint}")
+        else:
+            click.echo(f"\n  Fehlend: {', '.join(missing)}")
+    else:
+        click.echo("  Alle Build-Tools vorhanden.")
 
 
 def _setup_shell_integration() -> None:
