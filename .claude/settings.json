@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git status)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(pytest*)",
+      "Bash(pip *)",
+      "Bash(python *)",
+      "Bash(pbrew *)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".venv/bin/pytest --no-header -q 2>&1 | tail -8"
+          }
+        ]
+      }
+    ]
+  }
+}

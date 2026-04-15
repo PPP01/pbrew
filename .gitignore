@@ -7,3 +7,12 @@ build/
 .venv/
 *.egg
 .eggs/
+
+# Claude Code — benutzerspezifische Einstellungen
+.claude/settings.local.json
+
+# Claude Code — remember-Skill (benutzerspezifische Session-Daten)
+.remember/
+
+# Claude Code — Memory (benutzerspezifisch)
+.claude/memory/
