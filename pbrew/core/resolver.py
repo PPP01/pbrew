@@ -51,12 +51,22 @@ def fetch_latest(family: str) -> PhpRelease:
 
 
 def fetch_known(major: int = 8) -> list[PhpRelease]:
-    """Gibt alle bekannten Releases für eine Major-Version zurück."""
-    url = f"{PHP_RELEASES_URL}?json=1&version={major}"
-    data = _fetch_json(url)
+    """Gibt alle bekannten Releases für eine Major-Version zurück.
+
+    Fragt zuerst die supported_versions ab, dann pro Family alle Releases.
+    Die php.net-API liefert bei version={major} ohne max= ein flaches Objekt
+    (kein Dict mit Versions-Keys) — daher der zweistufige Ansatz.
+    """
+    meta = _fetch_json(f"{PHP_RELEASES_URL}?json=1&version={major}")
+    families: list[str] = meta.get("supported_versions", [])
+    if not families:
+        raise RuntimeError(f"Keine unterstützten PHP-{major}.x Families gefunden")
+
     releases = []
-    for version, release_data in data.items():
-        release = _parse_release(version, release_data)
-        if release:
-            releases.append(release)
+    for family in families:
+        data = _fetch_json(f"{PHP_RELEASES_URL}?json=1&version={family}&max=100")
+        for version, release_data in data.items():
+            release = _parse_release(version, release_data)
+            if release:
+                releases.append(release)
     return sorted(releases, key=lambda r: tuple(int(x) for x in r.version.split(".")), reverse=True)
