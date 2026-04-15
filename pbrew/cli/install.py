@@ -6,7 +6,7 @@ from pathlib import Path
 
 import click
 
-from pbrew.core import builder, config as cfg_mod, resolver, state as state_mod
+from pbrew.core import build_libs, builder, config as cfg_mod, resolver, state as state_mod
 from pbrew.core.paths import (
     build_log, cli_ini_dir, configs_dir, distfiles_dir,
     confd_dir, family_from_version, fpm_ini_dir, logs_dir,
@@ -22,8 +22,9 @@ from pbrew.utils.health import run_basic_checks
 @click.option("--config", "config_name", default=None, help="Benannte Config (z.B. production)")
 @click.option("--save", is_flag=True, help="Config nach dem Build speichern")
 @click.option("-j", "--jobs", type=int, default=None, help="Parallele Build-Jobs")
+@click.option("--skip-lib-check", is_flag=True, help="Überspringt den Pre-Flight-Check der Build-Libraries")
 @click.pass_context
-def install_cmd(ctx, version_spec, config_name, save, jobs):
+def install_cmd(ctx, version_spec, config_name, save, jobs, skip_lib_check):
     """PHP aus dem Quellcode bauen und installieren."""
     prefix: Path = ctx.obj["prefix"]
     family = family_from_version(version_spec)
@@ -46,6 +47,9 @@ def install_cmd(ctx, version_spec, config_name, save, jobs):
     if save and config_name:
         cfg_mod.save_config(cfgs_dir, config_name, config)
         click.echo(f"  Config als '{config_name}' gespeichert.")
+
+    if not skip_lib_check:
+        _check_build_libraries(config.get("build", {}).get("variants", []))
 
     dist_dir = distfiles_dir(prefix)
     tarball = dist_dir / f"php-{version}.tar.bz2"
@@ -113,6 +117,30 @@ def install_cmd(ctx, version_spec, config_name, save, jobs):
         click.echo("  Warnung: Einige Checks fehlgeschlagen. Log: " + str(log_path), err=True)
 
     click.echo(f"✓ PHP {version} installiert.")
+
+
+def _check_build_libraries(variants: list[str]) -> None:
+    """Pre-Flight-Check: bricht ab, wenn Dev-Libs fehlen, mit Installationshinweis."""
+    missing = build_libs.check_required_libs(variants)
+    if not missing:
+        return
+
+    click.echo("\n  Pre-Flight-Check: fehlende Build-Libraries", err=True)
+    for m in missing:
+        scope = "Pflicht" if m.variant == "core" else f"für {m.variant}"
+        pkg_hint = f" → {m.distro_pkg}" if m.distro_pkg else ""
+        click.echo(f"    ✗ {m.pkgconfig} ({scope}){pkg_hint}", err=True)
+
+    cmd = build_libs.install_command(missing)
+    if cmd:
+        click.echo(f"\n  Installation:\n    {cmd}", err=True)
+    else:
+        click.echo(
+            "\n  Bitte die Dev-Pakete für die obigen pkg-config-Namen installieren.",
+            err=True,
+        )
+    click.echo("\n  Mit --skip-lib-check kann diese Prüfung übersprungen werden.\n", err=True)
+    sys.exit(1)
 
 
 def _run_phase(name: str, action, build_dir: Path, log_path: Path) -> None:
