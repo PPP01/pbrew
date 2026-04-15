@@ -64,6 +64,68 @@ def save_config(configs_dir: Path, name: str, data: dict) -> None:
     path.write_text(tomlkit.dumps(data))
 
 
+PRESETS: dict[str, dict] = {
+    "minimal": {
+        "build": {
+            "variants": ["default", "openssl"],
+        },
+        "xdebug": {"enabled": False},
+        "fpm": {"enabled": False},
+    },
+    "standard": {
+        "build": {
+            "variants": [
+                "default", "exif", "fpm", "intl", "mysql", "sqlite",
+                "ftp", "iconv", "gettext", "openssl", "opcache",
+            ],
+        },
+        "xdebug": {"enabled": False},
+    },
+    "dev": {
+        "build": {
+            "variants": [
+                "default", "exif", "fpm", "intl", "mysql", "sqlite",
+                "ftp", "iconv", "gettext", "openssl", "opcache",
+            ],
+        },
+        "xdebug": {"enabled": True},
+    },
+    "prod": {
+        "build": {
+            "variants": [
+                "default", "exif", "fpm", "intl", "mysql", "sqlite",
+                "ftp", "iconv", "gettext", "openssl", "opcache",
+            ],
+        },
+        "xdebug": {"enabled": False},
+        "fpm": {
+            "pool_defaults": {
+                "pm": "dynamic",
+                "pm_max_children": 20,
+                "pm_start_servers": 4,
+                "pm_min_spare_servers": 2,
+                "pm_max_spare_servers": 8,
+            },
+        },
+    },
+}
+
+
+def init_profiles(configs_dir: Path) -> list[str]:
+    """Schreibt Preset-Profile wenn sie noch nicht existieren.
+
+    Gibt die Liste der neu erzeugten Profilnamen zurück.
+    """
+    configs_dir.mkdir(parents=True, exist_ok=True)
+    created = []
+    for name, preset in PRESETS.items():
+        path = configs_dir / f"{name}.toml"
+        if not path.exists():
+            save_config(configs_dir, name, preset)
+            created.append(name)
+    return created
+
+
 def init_default_config(configs_dir: Path) -> None:
     """Schreibt default.toml wenn sie noch nicht existiert."""
     path = configs_dir / "default.toml"

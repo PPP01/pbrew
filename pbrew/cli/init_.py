@@ -2,9 +2,11 @@ from pathlib import Path
 
 import click
 
+from pbrew.core.config import init_profiles
 from pbrew.core.global_config import global_config_file, write_prefix
 from pbrew.core.paths import (
     bin_dir,
+    configs_dir,
     distfiles_dir,
     etc_dir,
     get_prefix,
@@ -40,6 +42,13 @@ def init_cmd():
     for d in dirs:
         d.mkdir(parents=True, exist_ok=True)
         click.echo(f"  ✓ {d.relative_to(prefix)}/")
+
+    created = init_profiles(configs_dir(prefix))
+    if created:
+        click.echo(f"\nBuild-Profile angelegt: {', '.join(created)}")
+        click.echo("  Verwenden mit: pbrew install 8.4 --config=dev")
+    else:
+        click.echo("\nBuild-Profile: bereits vorhanden.")
 
     write_prefix(prefix)
     click.echo(f"\nKonfiguration gespeichert: {global_config_file()}")
