@@ -63,7 +63,7 @@ def install_cmd(ctx, version_spec, config_name, save, jobs):
         click.echo(f"  Entpacke nach {build_dir}...")
         build_dir.parent.mkdir(parents=True, exist_ok=True)
         with tarfile.open(tarball, "r:bz2") as tar:
-            tar.extractall(build_dir.parent)
+            tar.extractall(build_dir.parent, filter="data")
         # PHP entpackt in php-8.4.22/, umbenennen
         extracted = build_dir.parent / f"php-{version}"
         if extracted.exists() and not build_dir.exists():
@@ -87,6 +87,7 @@ def install_cmd(ctx, version_spec, config_name, save, jobs):
             builder.run_make(build_dir, num_jobs, log)
             builder.run_make_install(build_dir, log)
         except Exception as exc:
+            shutil.rmtree(build_dir, ignore_errors=True)
             click.echo(f"\n  Fehler beim Build. Log: {log_path}", err=True)
             click.echo(f"  {exc}", err=True)
             sys.exit(1)
