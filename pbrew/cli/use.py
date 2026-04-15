@@ -1,6 +1,6 @@
 from pathlib import Path
 import click
-from pbrew.core.paths import family_from_version, state_file, global_state_file
+from pbrew.core.paths import family_from_version, family_suffix, state_file, global_state_file
 from pbrew.core.state import get_family_state, set_global_default
 
 
@@ -38,5 +38,4 @@ def switch_cmd(ctx, version_spec):
         raise SystemExit(1)
 
     set_global_default(global_state_file(prefix), family)
-    suffix = family.replace(".", "")
-    click.echo(f"✓ php{suffix} ist jetzt der permanente Default (pbrew switch)")
+    click.echo(f"✓ php{family_suffix(family)} ist jetzt der permanente Default (pbrew switch)")

@@ -1,6 +1,6 @@
 from pathlib import Path
 import click
-from pbrew.core.paths import global_state_file, state_file, versions_dir
+from pbrew.core.paths import family_from_version, family_suffix, global_state_file, state_file, versions_dir
 from pbrew.core.state import get_family_state, get_global_state
 
 
@@ -19,10 +19,11 @@ def list_cmd(ctx):
     for entry in sorted(vdir.iterdir()):
         if not entry.is_dir():
             continue
-        parts = entry.name.split(".")
-        if len(parts) >= 2:
-            family = f"{parts[0]}.{parts[1]}"
-            installed_versions.setdefault(family, []).append(entry.name)
+        try:
+            family = family_from_version(entry.name)
+        except ValueError:
+            continue
+        installed_versions.setdefault(family, []).append(entry.name)
 
     global_state = get_global_state(global_state_file(prefix))
     default_family = global_state.get("default_family", "")
@@ -35,11 +36,11 @@ def list_cmd(ctx):
         state = get_family_state(sf)
         active = state.get("active", "—")
         previous = state.get("previous", "—")
-        suffix = family.replace(".", "")
+        suffix = family_suffix(family)
         extensions = ", ".join(state.get("extensions", [])) or "—"
         default_mark = " *" if family == default_family else ""
         click.echo(f"  {family:<8} {active:<12} {previous:<12} php{suffix:<7} {extensions}{default_mark}")
 
     if default_family:
-        click.echo(f"\n  * php{default_family.replace('.', '')} ist der aktuelle Default")
+        click.echo(f"\n  * php{family_suffix(default_family)} ist der aktuelle Default")
     click.echo()

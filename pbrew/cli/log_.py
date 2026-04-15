@@ -2,7 +2,8 @@ import subprocess
 import sys
 from pathlib import Path
 import click
-from pbrew.core.paths import build_log, family_from_version
+from pbrew.core.paths import build_log, family_from_version, state_file
+from pbrew.core.state import get_family_state
 
 
 @click.command("log")
@@ -14,8 +15,6 @@ def log_cmd(ctx, version_spec, tail):
     prefix: Path = ctx.obj["prefix"]
     family = family_from_version(version_spec)
 
-    from pbrew.core.state import get_family_state
-    from pbrew.core.paths import state_file
     sf = state_file(prefix, family)
     state = get_family_state(sf)
     version = state.get("active", version_spec)

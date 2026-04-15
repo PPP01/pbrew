@@ -4,11 +4,10 @@ from pathlib import Path
 
 import click
 
-from pbrew.core.paths import bin_dir, versions_dir, state_file
+from pbrew.core.paths import bin_dir, family_from_version, versions_dir, state_file
 from pbrew.core.state import get_family_state
 
 
-# Binaries die für den Build benötigt werden
 _REQUIRED_BINS = ["gcc", "make", "autoconf", "bison", "re2c", "pkg-config"]
 
 
@@ -21,12 +20,10 @@ def doctor_cmd(ctx):
 
     click.echo("Prüfe pbrew-Installation...\n")
 
-    # Python-Version
     py_ok = sys.version_info >= (3, 11)
     _show("Python " + sys.version.split()[0], py_ok)
     ok_all = ok_all and py_ok
 
-    # Binary-Dependencies
     click.echo("\nBinaries:")
     for binary in _REQUIRED_BINS:
         found = shutil.which(binary) is not None
@@ -37,21 +34,22 @@ def doctor_cmd(ctx):
     vdir = versions_dir(prefix)
     if vdir.exists():
         click.echo("\nInstallierte Versionen:")
+        family_states: dict[str, dict] = {}
         for entry in sorted(vdir.iterdir()):
             if not entry.is_dir():
                 continue
-            parts = entry.name.split(".")
-            if len(parts) >= 3:
-                family = f"{parts[0]}.{parts[1]}"
-                sf = state_file(prefix, family)
-                state = get_family_state(sf)
-                active = state.get("active") == entry.name
-                suffix = " (aktiv)" if active else ""
-                _show(f"{entry.name}{suffix}", True)
+            try:
+                family = family_from_version(entry.name)
+            except ValueError:
+                continue
+            if family not in family_states:
+                family_states[family] = get_family_state(state_file(prefix, family))
+            active = family_states[family].get("active") == entry.name
+            suffix = " (aktiv)" if active else ""
+            _show(f"{entry.name}{suffix}", True)
     else:
         click.echo("\n  Keine Versionen installiert.")
 
-    # Wrapper in bin/
     bdir = bin_dir(prefix)
     if bdir.exists():
         click.echo("\nWrapper in " + str(bdir) + ":")

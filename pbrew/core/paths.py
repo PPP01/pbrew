@@ -26,6 +26,11 @@ def family_from_version(version: str) -> str:
     raise ValueError(f"Ungültige Versionsangabe: {version!r}")
 
 
+def family_suffix(family: str) -> str:
+    """'8.4' -> '84' (für Wrapper-Namen wie php84, phpize84)."""
+    return family.replace(".", "")
+
+
 def versions_dir(prefix: Path) -> Path:
     return prefix / "versions"
 

@@ -9,7 +9,7 @@ import click
 from pbrew.core import builder, config as cfg_mod, resolver, state as state_mod
 from pbrew.core.paths import (
     bin_dir, build_log, cli_ini_dir, configs_dir,
-    confd_dir, family_from_version, logs_dir,
+    confd_dir, family_from_version, family_suffix, fpm_ini_dir, logs_dir,
     state_file, version_dir,
 )
 from pbrew.utils import download as dl_mod
@@ -37,18 +37,15 @@ def install_cmd(ctx, version_spec, config_name, save, jobs):
         click.echo(f"  PHP {version} ist bereits installiert: {vdir}")
         return
 
-    # Config laden
     cfgs_dir = configs_dir(prefix)
     cfg_mod.init_default_config(cfgs_dir)
     config = cfg_mod.load_config(cfgs_dir, family, named=config_name)
     num_jobs = builder.get_jobs(config, override=jobs)
 
-    # Config speichern wenn --save
     if save and config_name:
         cfg_mod.save_config(cfgs_dir, config_name, config)
         click.echo(f"  Config als '{config_name}' gespeichert.")
 
-    # Download
     dist_dir = prefix / "distfiles"
     tarball = dist_dir / f"php-{version}.tar.bz2"
     if not tarball.exists():
@@ -57,7 +54,6 @@ def install_cmd(ctx, version_spec, config_name, save, jobs):
     else:
         click.echo(f"  Nutze gecachten Tarball: {tarball}")
 
-    # Entpacken
     build_dir = prefix / "build" / version
     if not build_dir.exists():
         click.echo(f"  Entpacke nach {build_dir}...")
@@ -69,11 +65,8 @@ def install_cmd(ctx, version_spec, config_name, save, jobs):
         if extracted.exists() and not build_dir.exists():
             extracted.rename(build_dir)
 
-    # Build-Log vorbereiten
     log_path = build_log(prefix, version)
     logs_dir(prefix).mkdir(parents=True, exist_ok=True)
-
-    # Verzeichnisse anlegen
     cli_ini_dir(prefix, family).mkdir(parents=True, exist_ok=True)
     confd_dir(prefix, family).mkdir(parents=True, exist_ok=True)
 
@@ -95,18 +88,13 @@ def install_cmd(ctx, version_spec, config_name, save, jobs):
     duration = time.monotonic() - start
     click.echo(f"  Build abgeschlossen ({duration:.0f}s)")
 
-    # php.ini aus php.ini-production kopieren
     _init_php_ini(prefix, version, family)
 
-    # State aktualisieren
     sf = state_file(prefix, family)
-    state_mod.set_active_version(sf, version, config=config_name or "default")
-    state_mod.set_build_duration(sf, version, duration)
+    state_mod.record_install(sf, version, config=config_name or "default", duration=duration)
 
-    # Symlinks / Wrapper
     _update_wrappers(prefix, version, family)
 
-    # Health-Check
     click.echo("  Health-Check...")
     results = run_basic_checks(prefix, version, family, config)
     for r in results:
@@ -123,7 +111,7 @@ def install_cmd(ctx, version_spec, config_name, save, jobs):
 def _init_php_ini(prefix: Path, version: str, family: str) -> None:
     """Kopiert php.ini-production als Basis — nur wenn noch nicht vorhanden."""
     src = version_dir(prefix, version) / "lib" / "php.ini-production"
-    for dest_dir in (cli_ini_dir(prefix, family), prefix / "etc" / "fpm" / family):
+    for dest_dir in (cli_ini_dir(prefix, family), fpm_ini_dir(prefix, family)):
         dest_dir.mkdir(parents=True, exist_ok=True)
         dest = dest_dir / "php.ini"
         if not dest.exists() and src.exists():
@@ -143,7 +131,7 @@ def _update_wrappers(prefix: Path, version: str, family: str) -> None:
     bdir = bin_dir(prefix)
     bdir.mkdir(parents=True, exist_ok=True)
 
-    suffix = family.replace(".", "")  # "8.4" -> "84"
+    suffix = family_suffix(family)
     php_bin = version_dir(prefix, version) / "bin" / "php"
     phpize_bin = version_dir(prefix, version) / "bin" / "phpize"
     php_config_bin = version_dir(prefix, version) / "bin" / "php-config"

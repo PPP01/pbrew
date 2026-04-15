@@ -56,6 +56,25 @@ def set_build_duration(state_file: Path, version: str, seconds: float) -> None:
     _save(state_file, state)
 
 
+def record_install(
+    state_file: Path,
+    version: str,
+    config: str = "default",
+    duration: float | None = None,
+) -> None:
+    """Setzt active, config, installed_at und optional build_duration in einem Write."""
+    state = _load(state_file)
+    if "active" in state and state["active"] != version:
+        state["previous"] = state["active"]
+    state["active"] = version
+    state["config"] = config
+    entry = state.setdefault("installed", {}).setdefault(version, {})
+    entry["installed_at"] = datetime.now(timezone.utc).isoformat()
+    if duration is not None:
+        entry["build_duration_seconds"] = round(duration)
+    _save(state_file, state)
+
+
 def add_extension(state_file: Path, extension: str) -> None:
     state = _load(state_file)
     extensions: list = state.get("extensions", [])
