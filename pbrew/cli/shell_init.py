@@ -26,7 +26,7 @@ export PATH="{bin_dir}:$PATH"
 pbrew() {{
     local cmd="$1"
     if [[ "$cmd" == "use" || "$cmd" == "switch" ]]; then
-        eval "$(command pbrew $@)"
+        eval "$(command pbrew "$@")"
     else
         command pbrew "$@"
     fi
