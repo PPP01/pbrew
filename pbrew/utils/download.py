@@ -28,7 +28,8 @@ def download(url: str, dest: Path, expected_sha256: str = "") -> None:
                     total_mb = total / 1_048_576
                     print(f"\r  {mb:.1f} / {total_mb:.1f} MB ({pct}%)", end="", flush=True)
 
-    print()
+    if total:
+        print()  # Zeilenumbruch nach Fortschrittszeile
 
     if expected_sha256 and sha256.hexdigest() != expected_sha256:
         dest.unlink(missing_ok=True)
