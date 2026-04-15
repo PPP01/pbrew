@@ -8,7 +8,7 @@ import click
 
 from pbrew.core import builder, config as cfg_mod, resolver, state as state_mod
 from pbrew.core.paths import (
-    build_log, cli_ini_dir, configs_dir,
+    build_log, cli_ini_dir, configs_dir, distfiles_dir,
     confd_dir, family_from_version, fpm_ini_dir, logs_dir,
     state_file, version_dir,
 )
@@ -47,7 +47,7 @@ def install_cmd(ctx, version_spec, config_name, save, jobs):
         cfg_mod.save_config(cfgs_dir, config_name, config)
         click.echo(f"  Config als '{config_name}' gespeichert.")
 
-    dist_dir = prefix / "distfiles"
+    dist_dir = distfiles_dir(prefix)
     tarball = dist_dir / f"php-{version}.tar.bz2"
     if not tarball.exists():
         click.echo(f"  Lade php-{version}.tar.bz2 herunter...")
