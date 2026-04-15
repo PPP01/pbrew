@@ -8,10 +8,11 @@ import click
 
 from pbrew.core import builder, config as cfg_mod, resolver, state as state_mod
 from pbrew.core.paths import (
-    bin_dir, build_log, cli_ini_dir, configs_dir,
-    confd_dir, family_from_version, family_suffix, fpm_ini_dir, logs_dir,
+    build_log, cli_ini_dir, configs_dir,
+    confd_dir, family_from_version, fpm_ini_dir, logs_dir,
     state_file, version_dir,
 )
+from pbrew.core.wrappers import write_naked_wrappers, write_versioned_wrappers
 from pbrew.utils import download as dl_mod
 from pbrew.utils.health import run_basic_checks
 
@@ -93,7 +94,9 @@ def install_cmd(ctx, version_spec, config_name, save, jobs):
     sf = state_file(prefix, family)
     state_mod.record_install(sf, version, config=config_name or "default", duration=duration)
 
-    _update_wrappers(prefix, version, family)
+    write_versioned_wrappers(prefix, version, family)
+    if not (prefix / "bin" / "php").exists():
+        write_naked_wrappers(prefix, version, family)
 
     click.echo("  Health-Check...")
     results = run_basic_checks(prefix, version, family, config)
@@ -126,21 +129,3 @@ def _init_php_ini(prefix: Path, version: str, family: str) -> None:
         )
 
 
-def _update_wrappers(prefix: Path, version: str, family: str) -> None:
-    """Erstellt php84, phpize84, php-config84 Wrapper in PREFIX/bin/."""
-    bdir = bin_dir(prefix)
-    bdir.mkdir(parents=True, exist_ok=True)
-
-    suffix = family_suffix(family)
-    php_bin = version_dir(prefix, version) / "bin" / "php"
-    phpize_bin = version_dir(prefix, version) / "bin" / "phpize"
-    php_config_bin = version_dir(prefix, version) / "bin" / "php-config"
-
-    for name, target in [
-        (f"php{suffix}", php_bin),
-        (f"phpize{suffix}", phpize_bin),
-        (f"php-config{suffix}", php_config_bin),
-    ]:
-        wrapper = bdir / name
-        wrapper.write_text(f"#!/bin/bash\nexec {target} \"$@\"\n")
-        wrapper.chmod(0o755)
