@@ -92,6 +92,38 @@ def test_output_shows_each_phase(tmp_path):
 # Bei Phasen-Fehler wird die betroffene Phase genannt
 # ---------------------------------------------------------------------------
 
+def test_install_pinned_version_uses_fetch_specific(tmp_path):
+    """Bei 3-stelliger Versionsangabe wird fetch_specific statt fetch_latest genutzt."""
+    version = "8.4.19"
+    prefix = tmp_path / "pbrew"
+    _prepare_prefix(prefix, version)
+    runner = CliRunner()
+    env = {"XDG_CONFIG_HOME": str(tmp_path / "config")}
+    with patch.dict(os.environ, env), \
+         patch("pbrew.cli.install.resolver.fetch_specific", return_value=_make_release(version)) as mfs, \
+         patch("pbrew.cli.install.resolver.fetch_latest") as mfl, \
+         patch("pbrew.cli.install.build_libs.check_required_libs", return_value=[]), \
+         patch("pbrew.cli.install.builder.run_configure", return_value=None), \
+         patch("pbrew.cli.install.builder.run_make", return_value=None), \
+         patch("pbrew.cli.install.builder.run_make_install",
+               side_effect=lambda *a, **kw: _simulate_make_install(prefix, version)), \
+         patch("pbrew.cli.install.run_basic_checks", return_value=[]):
+        result = runner.invoke(main, ["--prefix", str(prefix), "install", version])
+    assert result.exit_code == 0, result.output
+    mfs.assert_called_once_with(version)
+    mfl.assert_not_called()
+    assert "8.4.19" in result.output
+
+
+def test_install_family_uses_fetch_latest(tmp_path):
+    """Bei 2-stelliger Versionsangabe wird fetch_latest genutzt."""
+    prefix = tmp_path / "pbrew"
+    _prepare_prefix(prefix)
+    result, (mc, mm, mi) = _invoke_install(prefix, tmp_path)
+    assert result.exit_code == 0, result.output
+    assert "Neueste Version" in result.output
+
+
 def test_error_in_configure_reports_which_phase(tmp_path):
     prefix = tmp_path / "pbrew"
     _prepare_prefix(prefix)
