@@ -78,6 +78,13 @@ def test_naked_php_fpm_wrapper_created(tmp_path):
     assert php_fpm.stat().st_mode & 0o111
 
 
+def test_naked_php_fpm_wrapper_checks_sbin_path(tmp_path):
+    write_naked_wrappers(tmp_path)
+    content = (tmp_path / "bin" / "php-fpm").read_text()
+    assert "sbin/php-fpm" in content
+    assert "PBREW_PATH" in content
+
+
 def test_naked_wrappers_idempotent(tmp_path):
     write_naked_wrappers(tmp_path)
     write_naked_wrappers(tmp_path)
@@ -133,7 +140,7 @@ def test_write_phpd_wrapper_creates_wrapper_when_xdebug_present(tmp_path):
     assert phpd.exists()
     assert phpd.stat().st_mode & 0o111
     content = phpd.read_text()
-    assert "dzend_extension" in content
+    assert "-dzend_extension=" in content
 
 
 # ---------------------------------------------------------------------------

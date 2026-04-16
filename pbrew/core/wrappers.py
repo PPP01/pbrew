@@ -47,6 +47,7 @@ def write_naked_wrappers(prefix: Path) -> None:
     fpm_wrapper = bdir / "php-fpm"
     fpm_wrapper.write_text(
         "#!/bin/bash\n"
+        "# PBREW_PATH zeigt auf <prefix>/versions/<version>/bin\n"
         'if [ -n "$PBREW_PATH" ]; then\n'
         '    exec "$(dirname "$PBREW_PATH")/sbin/php-fpm" "$@"\n'
         "else\n"
@@ -64,9 +65,7 @@ def find_xdebug(version_dir: Path) -> Path | None:
     search_root = version_dir / "lib" / "php" / "extensions"
     if not search_root.exists():
         return None
-    for candidate in search_root.rglob("xdebug.so"):
-        return candidate
-    return None
+    return next(search_root.rglob("xdebug.so"), None)
 
 
 def write_phpd_wrapper(prefix: Path, version: str) -> bool:
@@ -91,7 +90,8 @@ def write_phpd_wrapper(prefix: Path, version: str) -> bool:
         '    [ -f "$XDEBUG" ] && exec "$PBREW_PATH/php" -dzend_extension="$XDEBUG" "$@"\n'
         '    exec "$PBREW_PATH/php" "$@"\n'
         "else\n"
-        '    exec /usr/bin/env php -dzend_extension=xdebug.so "$@"\n'
+        '    echo "phpd: PBREW_PATH nicht gesetzt. Bitte zuerst: pbrew use <version>" >&2\n'
+        "    exit 1\n"
         "fi\n"
     )
     phpd.chmod(0o755)
