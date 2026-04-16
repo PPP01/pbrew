@@ -29,10 +29,17 @@ def install_cmd(ctx, version_spec, config_name, save, jobs, skip_lib_check):
     prefix: Path = ctx.obj["prefix"]
     family = family_from_version(version_spec)
 
-    click.echo(f"Prüfe verfügbare Versionen für PHP {family}...")
-    release = resolver.fetch_latest(family)
-    version = release.version
-    click.echo(f"  Neueste Version: {version}")
+    parts = version_spec.split(".")
+    if len(parts) == 3 and all(p.isdigit() for p in parts):
+        click.echo(f"Prüfe PHP {version_spec} auf php.net...")
+        release = resolver.fetch_specific(version_spec)
+        version = release.version
+        click.echo(f"  Version: {version}")
+    else:
+        click.echo(f"Prüfe verfügbare Versionen für PHP {family}...")
+        release = resolver.fetch_latest(family)
+        version = release.version
+        click.echo(f"  Neueste Version: {version}")
 
     vdir = version_dir(prefix, version)
     if vdir.exists():

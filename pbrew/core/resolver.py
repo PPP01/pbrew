@@ -50,6 +50,29 @@ def fetch_latest(family: str) -> PhpRelease:
     return release
 
 
+def fetch_specific(version: str) -> PhpRelease:
+    """Gibt eine exakte PHP-Version zurück (z.B. '8.4.19').
+
+    Lädt alle Releases der betreffenden Family und sucht die angegebene Version.
+    Wirft RuntimeError, wenn die Version nicht gefunden wird (z.B. zu alt oder falsch).
+    """
+    parts = version.split(".")
+    if len(parts) != 3 or not all(p.isdigit() for p in parts):
+        raise ValueError(f"Vollständige Version erwartet (z.B. 8.4.19), bekommen: {version}")
+    family = f"{parts[0]}.{parts[1]}"
+    url = f"{PHP_RELEASES_URL}?json=1&version={family}&max=100"
+    data = _fetch_json(url)
+    if version not in data:
+        raise RuntimeError(
+            f"PHP {version} nicht auf php.net gefunden – "
+            f"Version nicht verfügbar oder falsch angegeben."
+        )
+    release = _parse_release(version, data[version])
+    if release is None:
+        raise RuntimeError(f"Keine .tar.bz2 Quelle für PHP {version} gefunden")
+    return release
+
+
 def fetch_known(major: int = 8) -> list[PhpRelease]:
     """Gibt alle bekannten Releases für eine Major-Version zurück.
 
