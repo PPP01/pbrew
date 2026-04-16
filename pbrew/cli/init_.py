@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 import click
@@ -28,6 +29,10 @@ from pbrew.core.wrapper_script import detect_pbrew_bin, write_wrapper_env, write
 def init_cmd():
     """Richtet pbrew ein: Prefix wählen, Verzeichnisse anlegen, Shell integrieren."""
     current_default = get_prefix()
+
+    if os.getuid() == 0:
+        if click.confirm("PHP systemweit einrichten?", default=True):
+            current_default = Path("/opt/pbrew")
 
     chosen = click.prompt("Installationspräfix", default=str(current_default))
     prefix = Path(chosen).expanduser().resolve()
