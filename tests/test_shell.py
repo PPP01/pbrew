@@ -121,3 +121,20 @@ def test_replace_or_append_replaces_hinzugefuegt_marker(tmp_path):
     result = replace_or_append_integration(rc_file, "source ~/.pbrew/pbrew-settings.sh")
     assert result is True
     assert "source ~/.pbrew/pbrew-settings.sh" in rc_file.read_text()
+
+
+def test_replace_or_append_no_duplicate_on_remigration(tmp_path):
+    """Zweiter Aufruf erzeugt kein Duplikat wenn source-Zeile schon da ist."""
+    rc = tmp_path / ".bashrc"
+    # Simuliert RC-Datei nach erster Migration: Kommentar + source-Zeile
+    rc.write_text(
+        "# bestehende Zeile\n"
+        "# pbrew — hinzugefügt von 'pbrew init'\n"
+        "source /old/pbrew-settings.sh\n"
+    )
+    result = replace_or_append_integration(rc, "source /new/pbrew-settings.sh")
+    assert result is True
+    content = rc.read_text()
+    assert content.count("pbrew — hinzugefügt") <= 1
+    assert "source /old/pbrew-settings.sh" not in content
+    assert "source /new/pbrew-settings.sh" in content

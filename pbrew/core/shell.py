@@ -87,21 +87,26 @@ def replace_or_append_integration(rc_file: Path, new_snippet: str) -> bool:
 
     text = rc_file.read_text()
 
-    # Prüfen ob ein alter Marker (pbrew/bin oder pbrew shell-init) vorhanden ist,
-    # aber noch nicht der neue Marker (pbrew-settings.sh).
+    # Prüfen ob ein alter Marker vorhanden ist oder das neue Snippet bereits eingetragen ist.
+    # has_old erkennt alle bekannten alten und aktuellen pbrew-Eintrags-Stile.
+    # has_new ist nur True wenn das exakte neue Snippet schon im Text steht –
+    # verhindert Duplikate bei identischem Folgeaufruf, ohne alte source-Zeilen
+    # fälschlicherweise als "bereits migriert" einzustufen.
     old_markers = ("pbrew/bin", "pbrew shell-init", "pbrew — hinzugefügt")
     has_old = any(m in text for m in old_markers)
-    has_new = "pbrew-settings.sh" in text
+    has_new = new_snippet in text
 
-    if has_new:
+    if has_new and not has_old:
         # Bereits auf neuem Stand – nichts tun, kein Duplikat erzeugen
         return True
 
     if has_old:
-        # Alten Block ersetzen: Kommentarzeile + Snippet-Zeile(n) entfernen
-        # Muster: optionale Leerzeile, Kommentar "# pbrew …", dann die eigentliche Zeile
+        # Alten Block ersetzen: Kommentarzeile + die direkt folgende Inhalt-Zeile entfernen.
+        # Das Muster trifft bewusst unabhängig vom Inhalt der Folgezeile, damit sowohl
+        # der alte pbrew/bin-Stil als auch der source-pbrew-settings.sh-Stil korrekt
+        # entfernt werden und kein Duplikat entsteht.
         new_text = re.sub(
-            r"\n?# pbrew[^\n]*\n[^\n]*(?:pbrew/bin|pbrew shell-init)[^\n]*\n?",
+            r"\n?[ \t]*# pbrew[^\n]*\n[^\n]+",
             "",
             text,
         )
