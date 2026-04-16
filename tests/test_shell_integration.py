@@ -111,7 +111,9 @@ def test_init_integrates_shell_when_confirmed(tmp_path):
         result = runner.invoke(main, ["init"], input=f"{prefix}\ny\n")
     assert result.exit_code == 0, result.output
     assert rc_file.exists()
-    assert "pbrew shell-init bash" in rc_file.read_text()
+    text = rc_file.read_text()
+    assert "export PATH=" in text
+    assert "pbrew/bin" in text
 
 
 def test_init_skips_shell_when_declined(tmp_path):
@@ -139,5 +141,5 @@ def test_init_shell_idempotent(tmp_path):
     with patch.dict(os.environ, env), patch("pbrew.cli.init_._rc_file_for", return_value=rc_file):
         runner.invoke(main, ["init"], input=f"{prefix}\ny\n")
         runner.invoke(main, ["init"], input=f"{prefix}\ny\n")
-    count = rc_file.read_text().count("pbrew shell-init bash")
-    assert count == 1, f"Marker {count}× eingetragen statt einmal"
+    count = rc_file.read_text().count("pbrew/bin")
+    assert count == 1, f"PATH-Eintrag {count}× statt einmal"

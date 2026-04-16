@@ -1,22 +1,24 @@
 import os
 from pathlib import Path
 
-_MARKER = "pbrew shell-init"
+# Marker-Strings zur Erkennung bestehender Integration (alt + neu).
+# Wird von already_integrated() geprüft.
+_MARKERS = ("pbrew shell-init", "pbrew/bin")
+
 
 SHELL_MAP: dict[str, dict] = {
-    "bash": {
-        "snippet": 'eval "$(pbrew shell-init bash)"',
-        "rc": "~/.bashrc",
-    },
-    "zsh": {
-        "snippet": 'eval "$(pbrew shell-init zsh)"',
-        "rc": "~/.zshrc",
-    },
-    "fish": {
-        "snippet": "pbrew shell-init fish | source",
-        "rc": "~/.config/fish/config.fish",
-    },
+    "bash": {"rc": "~/.bashrc"},
+    "zsh":  {"rc": "~/.zshrc"},
+    "fish": {"rc": "~/.config/fish/config.fish"},
 }
+
+
+def path_export_snippet(prefix: Path, shell: str) -> str:
+    """Gibt das Shell-Snippet für die PATH-Erweiterung zurück."""
+    bdir = prefix / "bin"
+    if shell == "fish":
+        return f"fish_add_path {bdir}"
+    return f'export PATH="{bdir}:$PATH"'
 
 
 def detect_shell() -> "str | None":
@@ -32,10 +34,11 @@ def _rc_file_for(shell: str) -> Path:
 
 
 def already_integrated(rc_file: Path) -> bool:
-    """Prüft, ob pbrew bereits in der RC-Datei eingetragen ist."""
+    """Prüft, ob pbrew bereits in der RC-Datei eingetragen ist (alt oder neu)."""
     if not rc_file.exists():
         return False
-    return _MARKER in rc_file.read_text()
+    text = rc_file.read_text()
+    return any(marker in text for marker in _MARKERS)
 
 
 def append_shell_integration(rc_file: Path, snippet: str) -> None:
