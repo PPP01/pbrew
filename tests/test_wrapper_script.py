@@ -12,20 +12,21 @@ from pbrew.core.shell import already_integrated
 # generate_wrapper_script
 # ---------------------------------------------------------------------------
 
-def test_wrapper_contains_venv_check():
+def test_wrapper_sources_wrapper_env():
     content = generate_wrapper_script(Path("/home/alice/.pbrew"))
-    assert ".venv/bin/pbrew" in content
+    assert "wrapper.env" in content
+    assert "source" in content
 
 
-def test_wrapper_contains_global_fallback():
+def test_wrapper_checks_etc_fallback():
     content = generate_wrapper_script(Path("/home/alice/.pbrew"))
-    assert "command -v pbrew" in content
+    assert "/etc/pbrew/wrapper.env" in content
 
 
-def test_wrapper_contains_auto_setup():
+def test_wrapper_no_pip_install():
+    """Kein Auto-Install mehr – stattdessen Fehlermeldung."""
     content = generate_wrapper_script(Path("/home/alice/.pbrew"))
-    assert "python3 -m venv" in content
-    assert "pip install" in content
+    assert "pip install" not in content
 
 
 def test_wrapper_contains_use_switch_handling():
@@ -75,7 +76,7 @@ def test_write_overwrites_when_requested(tmp_path):
     wrapper.write_text("#!/bin/bash\n# old\n")
     write_wrapper_script(tmp_path, overwrite=True)
     assert "old" not in wrapper.read_text()
-    assert ".venv/bin/pbrew" in wrapper.read_text()
+    assert "wrapper.env" in wrapper.read_text()
 
 
 # ---------------------------------------------------------------------------

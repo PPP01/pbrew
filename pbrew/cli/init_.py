@@ -21,7 +21,7 @@ from pbrew.core.shell import (
     detect_shell,
     path_export_snippet,
 )
-from pbrew.core.wrapper_script import write_wrapper_script
+from pbrew.core.wrapper_script import detect_pbrew_bin, write_wrapper_env, write_wrapper_script
 
 
 @click.command("init")
@@ -45,9 +45,13 @@ def init_cmd():
         d.mkdir(parents=True, exist_ok=True)
         click.echo(f"  ✓ {d.relative_to(prefix)}/")
 
-    # Wrapper-Skript schreiben
+    # Wrapper-Skript + wrapper.env schreiben
     wrapper = write_wrapper_script(prefix)
+    pbrew_bin = detect_pbrew_bin()
+    env_file = write_wrapper_env(prefix, pbrew_bin)
     click.echo(f"\n  ✓ Wrapper-Skript: {wrapper}")
+    click.echo(f"  ✓ Python-pbrew:   {pbrew_bin}")
+    click.echo(f"    (gespeichert in {env_file})")
 
     created = init_profiles(configs_dir(prefix))
     if created:
