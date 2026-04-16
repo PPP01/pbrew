@@ -106,3 +106,18 @@ def test_replace_or_append_does_not_duplicate(tmp_path):
     replace_or_append_integration(rc_file, snippet)
     count = rc_file.read_text().count(snippet)
     assert count == 1, f"Snippet {count}× statt einmal eingetragen"
+
+
+def test_replace_or_append_replaces_hinzugefuegt_marker(tmp_path):
+    """RC-Datei mit ausschließlich 'pbrew — hinzugefügt'-Marker wird erkannt und ersetzt."""
+    rc_file = tmp_path / ".bashrc"
+    rc_file.write_text(
+        "# some content\n"
+        "\n"
+        "# pbrew — hinzugefügt von 'pbrew init'\n"
+        'export PATH="/home/user/.pbrew/bin:$PATH"\n'
+        "\n"
+    )
+    result = replace_or_append_integration(rc_file, "source ~/.pbrew/pbrew-settings.sh")
+    assert result is True
+    assert "source ~/.pbrew/pbrew-settings.sh" in rc_file.read_text()

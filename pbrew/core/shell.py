@@ -89,7 +89,7 @@ def replace_or_append_integration(rc_file: Path, new_snippet: str) -> bool:
 
     # Prüfen ob ein alter Marker (pbrew/bin oder pbrew shell-init) vorhanden ist,
     # aber noch nicht der neue Marker (pbrew-settings.sh).
-    old_markers = ("pbrew/bin", "pbrew shell-init")
+    old_markers = ("pbrew/bin", "pbrew shell-init", "pbrew — hinzugefügt")
     has_old = any(m in text for m in old_markers)
     has_new = "pbrew-settings.sh" in text
 
