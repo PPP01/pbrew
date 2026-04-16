@@ -109,8 +109,13 @@ def _setup_shell_integration(prefix: Path) -> None:
     # In Shell-RC einbinden
     rc_file = _rc_file_for(shell)
     source_line = f"source {settings_file}"
-    replaced = replace_or_append_integration(rc_file, source_line)
-    if replaced:
-        click.echo(f"  ✓ Ersetzte alten Eintrag in {rc_file}")
+
+    # Bereits korrekt eingetragen?
+    if rc_file.exists() and source_line in rc_file.read_text():
+        click.echo(f"  ✓ Bereits eingetragen in {rc_file}")
     else:
-        click.echo(f"  ✓ Eingetragen in {rc_file}. Shell neu starten oder: source {rc_file}")
+        replaced = replace_or_append_integration(rc_file, source_line)
+        if replaced:
+            click.echo(f"  ✓ Ersetzte alten Eintrag in {rc_file}")
+        else:
+            click.echo(f"  ✓ Eingetragen in {rc_file}. Shell neu starten oder: source {rc_file}")

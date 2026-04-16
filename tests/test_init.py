@@ -110,6 +110,26 @@ def test_init_shell_integration_source_line(tmp_path):
     assert "pbrew-settings.sh" in content
 
 
+def test_init_shell_integration_idempotent(tmp_path):
+    """Zweiter pbrew init Aufruf zeigt 'Bereits eingetragen', kein Duplikat."""
+    prefix = tmp_path / "mypbrew"
+    runner = CliRunner()
+    env = {
+        "XDG_CONFIG_HOME": str(tmp_path / "config"),
+        "SHELL": "/bin/bash",
+        "HOME": str(tmp_path),
+    }
+    with patch.dict(os.environ, env):
+        runner.invoke(main, ["init"], input=str(prefix) + "\n")
+        result = runner.invoke(main, ["init"], input=str(prefix) + "\n")
+    assert result.exit_code == 0, result.output
+    assert "Bereits eingetragen" in result.output
+    # Kein Duplikat in .bashrc
+    bashrc = tmp_path / ".bashrc"
+    content = bashrc.read_text()
+    assert content.count("pbrew-settings.sh") == 1
+
+
 def test_init_replaces_old_path_entry(tmp_path):
     """pbrew init ersetzt alten PATH-Export automatisch."""
     prefix = tmp_path / "mypbrew"
