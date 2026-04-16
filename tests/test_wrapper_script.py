@@ -135,10 +135,10 @@ def test_init_writes_path_export_not_shell_init(tmp_path):
         "SHELL": "/bin/bash",
         "XDG_CONFIG_HOME": str(tmp_path / "config"),
     }), patch("pbrew.cli.init_._rc_file_for", return_value=rc_file):
-        result = runner.invoke(main, ["init"], input=f"{prefix}\ny\n")
+        result = runner.invoke(main, ["init"], input=f"{prefix}\n")
     assert result.exit_code == 0, result.output
     content = rc_file.read_text()
-    assert "export PATH=" in content
-    assert str(prefix / "bin") in content
+    assert "source" in content
+    assert "pbrew-settings.sh" in content
     # Kein shell-init in der .bashrc
     assert "shell-init" not in content

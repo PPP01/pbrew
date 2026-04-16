@@ -107,24 +107,24 @@ def test_init_integrates_shell_when_confirmed(tmp_path):
         "SHELL": "/bin/bash",
         "XDG_CONFIG_HOME": str(tmp_path / "config"),
     }), patch("pbrew.cli.init_._rc_file_for", return_value=rc_file):
-        # Eingaben: Präfix-Prompt + Shell-Confirm (y)
-        result = runner.invoke(main, ["init"], input=f"{prefix}\ny\n")
+        result = runner.invoke(main, ["init"], input=f"{prefix}\n")
     assert result.exit_code == 0, result.output
     assert rc_file.exists()
     text = rc_file.read_text()
-    assert "export PATH=" in text
-    assert "pbrew/bin" in text
+    assert "source" in text
+    assert "pbrew-settings.sh" in text
 
 
 def test_init_skips_shell_when_declined(tmp_path):
+    """Ohne erkannte Shell wird kein RC-Eintrag erstellt."""
     runner = CliRunner()
     prefix = tmp_path / "pbrew"
     rc_file = tmp_path / ".bashrc"
     with patch.dict(os.environ, {
-        "SHELL": "/bin/bash",
+        "SHELL": "",
         "XDG_CONFIG_HOME": str(tmp_path / "config"),
     }), patch("pbrew.cli.init_._rc_file_for", return_value=rc_file):
-        result = runner.invoke(main, ["init"], input=f"{prefix}\nn\n")
+        result = runner.invoke(main, ["init"], input=f"{prefix}\n")
     assert result.exit_code == 0, result.output
     assert not rc_file.exists()
 
@@ -139,7 +139,7 @@ def test_init_shell_idempotent(tmp_path):
         "XDG_CONFIG_HOME": str(tmp_path / "config"),
     }
     with patch.dict(os.environ, env), patch("pbrew.cli.init_._rc_file_for", return_value=rc_file):
-        runner.invoke(main, ["init"], input=f"{prefix}\ny\n")
-        runner.invoke(main, ["init"], input=f"{prefix}\ny\n")
-    count = rc_file.read_text().count("pbrew/bin")
-    assert count == 1, f"PATH-Eintrag {count}× statt einmal"
+        runner.invoke(main, ["init"], input=f"{prefix}\n")
+        runner.invoke(main, ["init"], input=f"{prefix}\n")
+    count = rc_file.read_text().count("pbrew-settings.sh")
+    assert count == 1, f"source-Eintrag {count}× statt einmal"
