@@ -83,7 +83,7 @@ def switch_cmd(ctx, version_spec):
         version = state["active"]
 
     set_global_default(global_state_file(prefix), family)
-    write_naked_wrappers(prefix, version, family)
+    write_naked_wrappers(prefix)
     click.echo(f"✓ php{family_suffix(family)} ist jetzt der permanente Default")
     click.echo(f"  php  → {prefix}/bin/php{family_suffix(family)}")
     click.echo(f"  phpd → {prefix}/bin/php-fpm{family_suffix(family)}")

