@@ -7,9 +7,9 @@ from pbrew.cli import main
 
 
 def _invoke(tmp_path, user_input):
-    """Ruft `pbrew init` auf mit XDG_CONFIG_HOME in tmp_path."""
+    """Ruft `pbrew init` auf mit XDG_CONFIG_HOME in tmp_path. SHELL leer → kein Shell-Prompt."""
     runner = CliRunner()
-    with patch.dict(os.environ, {"XDG_CONFIG_HOME": str(tmp_path / "config")}):
+    with patch.dict(os.environ, {"XDG_CONFIG_HOME": str(tmp_path / "config"), "SHELL": ""}):
         return runner.invoke(main, ["init"], input=user_input)
 
 
