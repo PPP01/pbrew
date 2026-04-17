@@ -81,7 +81,7 @@ fi
 # use/switch müssen Env-Variablen in der aktuellen Shell setzen.
 # Unvermeidbar: Child-Prozess kann Parent-Env nicht direkt ändern.
 case "$1" in
-    use|switch)
+    use|switch|unswitch)
         _output="$("$PBREW_PYTHON_BIN" "$@")"
         _rc=$?
         [[ $_rc -eq 0 ]] && builtin eval "$_output"

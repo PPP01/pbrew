@@ -35,6 +35,12 @@ def test_wrapper_contains_use_switch_handling():
     assert "use|switch" in content
 
 
+def test_wrapper_script_includes_unswitch():
+    """Wrapper-Script behandelt unswitch im case-Statement."""
+    content = generate_wrapper_script(Path("/tmp/test"))
+    assert "unswitch" in content
+
+
 def test_wrapper_contains_exec_for_normal_commands():
     """Normale Commands per exec – kein unnötiger Subprozess."""
     content = generate_wrapper_script(Path("/home/alice/.pbrew"))
