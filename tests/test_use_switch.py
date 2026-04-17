@@ -154,6 +154,19 @@ def test_switch_family_uses_active_version(tmp_path):
     assert "8.4.20" in result.output  # aktive Version im Output
 
 
+def test_switch_family_writes_switch_file(tmp_path):
+    """pbrew switch 8.4 (Family) schreibt ebenfalls .switch-Datei."""
+    prefix = _make_prefix(tmp_path, "8.4", ["8.4.19", "8.4.20"], "8.4.20")
+    with patch("pbrew.cli.use.write_naked_wrappers"), \
+         patch("pbrew.cli.use.write_versioned_wrappers"), \
+         patch("pbrew.core.wrappers.write_phpd_wrapper"):
+        result = _invoke(prefix, ["switch", "8.4"])
+    assert result.exit_code == 0, result.output
+    switch_file = prefix / ".switch"
+    assert switch_file.exists(), ".switch nicht angelegt"
+    assert "8.4.20" in switch_file.read_text()
+
+
 # ---------------------------------------------------------------------------
 # pbrew unswitch
 # ---------------------------------------------------------------------------

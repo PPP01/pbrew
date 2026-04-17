@@ -7,7 +7,7 @@ from pbrew.core.paths import (
     version_dir,
 )
 from pbrew.core.state import get_family_state, set_active_version, set_global_default
-from pbrew.core.wrappers import write_naked_wrappers, write_versioned_wrappers
+from pbrew.core.wrappers import write_naked_wrappers, write_phpd_wrapper, write_versioned_wrappers
 
 
 def _is_pinned(version_spec: str) -> bool:
@@ -82,7 +82,6 @@ def switch_cmd(ctx, version_spec):
     write_naked_wrappers(prefix)
 
     # phpd-Wrapper aktualisieren, falls xdebug vorhanden ist
-    from pbrew.core.wrappers import write_phpd_wrapper
     write_phpd_wrapper(prefix, version)
 
     pbrew_path = version_dir(prefix, version) / "bin"
