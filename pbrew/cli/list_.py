@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 import click
 from pbrew.core.paths import family_from_version, family_suffix, global_state_file, state_file, versions_dir
@@ -47,8 +48,9 @@ def list_cmd(ctx):
         extensions = ", ".join(state.get("extensions", [])) or "—"
         default_mark = " *" if family == default_family else ""
 
+        env_active = os.environ.get("PBREW_ACTIVE")
         for i, version in enumerate(installed_versions[family]):
-            marker = "▸" if version == active else " "
+            marker = "▸" if version == (env_active or active) else " "
             config_name = (
                 state.get("installed", {}).get(version, {}).get("config_name") or "—"
             )
