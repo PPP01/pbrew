@@ -59,7 +59,8 @@ def test_naked_php_wrapper_checks_pbrew_path(tmp_path):
     write_naked_wrappers(tmp_path)
     content = (tmp_path / "bin" / "php").read_text()
     assert "$PBREW_PATH" in content
-    assert "/usr/bin/env php" in content
+    assert "printf" in content
+    assert "exit 1" in content
 
 
 def test_naked_phpize_and_php_config_wrappers_created(tmp_path):

@@ -62,7 +62,11 @@ def write_settings_file(prefix: Path, pbrew_bin: Path) -> Path:
         "\n"
         "pbrew() {\n"
         '    if [ "$1" = "use" ] || [ "$1" = "switch" ] || [ "$1" = "unswitch" ]; then\n'
-        '        eval "$(command pbrew "$@")"\n'
+        "        local _pbrew_out\n"
+        '        _pbrew_out="$(command pbrew "$@")"\n'
+        "        local _pbrew_rc=$?\n"
+        '        [ $_pbrew_rc -eq 0 ] && eval "$_pbrew_out"\n'
+        "        return $_pbrew_rc\n"
         "    else\n"
         '        command pbrew "$@"\n'
         "    fi\n"

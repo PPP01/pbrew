@@ -38,7 +38,8 @@ def write_naked_wrappers(prefix: Path) -> None:
             f'if [ -n "$PBREW_PATH" ]; then\n'
             f'    exec "$PBREW_PATH/{name}" "$@"\n'
             f"else\n"
-            f"    exec /usr/bin/env {name} \"$@\"\n"
+            f'    printf \'pbrew: Keine PHP-Version aktiv. pbrew use <version> ausführen.\\n\' >&2\n'
+            "    exit 1\n"
             f"fi\n"
         )
         wrapper.chmod(0o755)
@@ -51,7 +52,8 @@ def write_naked_wrappers(prefix: Path) -> None:
         'if [ -n "$PBREW_PATH" ]; then\n'
         '    exec "$(dirname "$PBREW_PATH")/sbin/php-fpm" "$@"\n'
         "else\n"
-        '    exec /usr/bin/env php-fpm "$@"\n'
+        '    printf \'pbrew: Keine PHP-Version aktiv. pbrew use <version> ausführen.\\n\' >&2\n'
+        "    exit 1\n"
         "fi\n"
     )
     fpm_wrapper.chmod(0o755)
