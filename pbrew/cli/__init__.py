@@ -20,8 +20,8 @@ from pbrew.cli.config_ import config_cmd
 
 
 @click.group()
-@click.version_option(package_name="pbrew")
-@click.option("--prefix", envvar="PBREW_ROOT", help="pbrew Prefix-Verzeichnis")
+@click.version_option(None, "-v", "--version", package_name="pbrew")
+@click.option("-p", "--prefix", envvar="PBREW_ROOT", help="pbrew Prefix-Verzeichnis")
 @click.pass_context
 def main(ctx, prefix):
     """pbrew — PHP Version Manager"""
