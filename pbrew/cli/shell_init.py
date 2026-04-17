@@ -10,12 +10,14 @@ export PATH="{bin_dir}:$PATH"
 # pbrew use: setzt PBREW_PHP in der aktuellen Shell
 pbrew() {{
     local cmd="$1"
-    if [ "$cmd" = "use" ] || [ "$cmd" = "switch" ]; then
+    if [ "$cmd" = "use" ] || [ "$cmd" = "switch" ] || [ "$cmd" = "unswitch" ]; then
         eval "$(command pbrew "$@")"
     else
         command pbrew "$@"
     fi
 }}
+
+[ -f "$PBREW_ROOT/.switch" ] && source "$PBREW_ROOT/.switch"
 '''
 
 _ZSH_INIT = '''\
@@ -25,12 +27,14 @@ export PATH="{bin_dir}:$PATH"
 
 pbrew() {{
     local cmd="$1"
-    if [[ "$cmd" == "use" || "$cmd" == "switch" ]]; then
+    if [[ "$cmd" == "use" || "$cmd" == "switch" || "$cmd" == "unswitch" ]]; then
         eval "$(command pbrew "$@")"
     else
         command pbrew "$@"
     fi
 }}
+
+[ -f "$PBREW_ROOT/.switch" ] && source "$PBREW_ROOT/.switch"
 '''
 
 
@@ -40,12 +44,14 @@ set -x PBREW_ROOT "{prefix}"
 fish_add_path "{bin_dir}"
 
 function pbrew
-    if test "$argv[1]" = "use" -o "$argv[1]" = "switch"
+    if test "$argv[1]" = "use" -o "$argv[1]" = "switch" -o "$argv[1]" = "unswitch"
         eval (command pbrew $argv)
     else
         command pbrew $argv
     end
 end
+
+test -f "$PBREW_ROOT/.switch" && source "$PBREW_ROOT/.switch"
 '''
 
 
