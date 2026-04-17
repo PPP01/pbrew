@@ -75,6 +75,18 @@ def write_settings_file(prefix: Path, pbrew_bin: Path) -> Path:
     return settings_file
 
 
+def write_switch_files(prefix: Path, pbrew_path: Path, version: str) -> None:
+    """Schreibt .switch (Bash/Zsh) und .switch.fish mit ENV-Export-Statements."""
+    (prefix / ".switch").write_text(
+        f'export PBREW_PATH="{pbrew_path}"\n'
+        f'export PBREW_ACTIVE="{version}"\n'
+    )
+    (prefix / ".switch.fish").write_text(
+        f'set -x PBREW_PATH "{pbrew_path}"\n'
+        f'set -x PBREW_ACTIVE "{version}"\n'
+    )
+
+
 def replace_or_append_integration(rc_file: Path, new_snippet: str) -> bool:
     """Ersetzt einen alten pbrew-Eintrag in rc_file oder hängt new_snippet an.
 
@@ -97,7 +109,6 @@ def replace_or_append_integration(rc_file: Path, new_snippet: str) -> bool:
     has_new = new_snippet in text
 
     if has_new and not has_old:
-        # Bereits auf neuem Stand – nichts tun, kein Duplikat erzeugen
         return True
 
     if has_old:

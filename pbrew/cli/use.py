@@ -6,6 +6,7 @@ from pbrew.core.paths import (
     state_file,
     version_dir,
 )
+from pbrew.core.shell import write_switch_files
 from pbrew.core.state import get_family_state, set_active_version, set_global_default
 from pbrew.core.wrappers import write_naked_wrappers, write_phpd_wrapper, write_versioned_wrappers
 
@@ -81,21 +82,11 @@ def switch_cmd(ctx, version_spec):
     set_global_default(global_state_file(prefix), family)
     write_naked_wrappers(prefix)
 
-    # phpd-Wrapper aktualisieren, falls xdebug vorhanden ist
+    # phpd nur bei switch (persistent), nicht bei use (ephemer)
     write_phpd_wrapper(prefix, version)
 
     pbrew_path = version_dir(prefix, version) / "bin"
-    switch_file = prefix / ".switch"
-    switch_file.write_text(
-        f'export PBREW_PATH="{pbrew_path}"\n'
-        f'export PBREW_ACTIVE="{version}"\n'
-    )
-
-    switch_fish_file = prefix / ".switch.fish"
-    switch_fish_file.write_text(
-        f'set -x PBREW_PATH "{pbrew_path}"\n'
-        f'set -x PBREW_ACTIVE "{version}"\n'
-    )
+    write_switch_files(prefix, pbrew_path, version)
 
     click.echo(f'export PBREW_PATH="{pbrew_path}"')
     click.echo(f'export PBREW_ACTIVE="{version}"')
@@ -111,12 +102,7 @@ def unswitch_cmd(ctx):
     """
     prefix: Path = ctx.obj["prefix"]
 
-    switch_file = prefix / ".switch"
-    if switch_file.exists():
-        switch_file.unlink()
-
-    switch_fish_file = prefix / ".switch.fish"
-    if switch_fish_file.exists():
-        switch_fish_file.unlink()
+    for name in (".switch", ".switch.fish"):
+        (prefix / name).unlink(missing_ok=True)
 
     click.echo("unset PBREW_PATH PBREW_ACTIVE")

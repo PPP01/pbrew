@@ -47,7 +47,7 @@ def write_naked_wrappers(prefix: Path) -> None:
     fpm_wrapper = bdir / "php-fpm"
     fpm_wrapper.write_text(
         "#!/bin/bash\n"
-        "# PBREW_PATH zeigt auf <prefix>/versions/<version>/bin\n"
+        "# php-fpm liegt in sbin/, nicht in bin/ – daher dirname von PBREW_PATH\n"
         'if [ -n "$PBREW_PATH" ]; then\n'
         '    exec "$(dirname "$PBREW_PATH")/sbin/php-fpm" "$@"\n'
         "else\n"
