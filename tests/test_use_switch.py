@@ -194,3 +194,35 @@ def test_unswitch_without_switch_file_succeeds(tmp_path):
     prefix = _make_prefix(tmp_path, "8.4", ["8.4.19"], "8.4.19")
     result = _invoke(prefix, ["unswitch"])
     assert result.exit_code == 0, result.output
+
+
+# ---------------------------------------------------------------------------
+# fish .switch.fish
+# ---------------------------------------------------------------------------
+
+def test_switch_writes_switch_fish_file(tmp_path):
+    """.switch.fish wird mit fish-kompatibler set -x Syntax geschrieben."""
+    prefix = _make_prefix(tmp_path, "8.4", ["8.4.19"], "8.4.19")
+    with patch("pbrew.cli.use.write_naked_wrappers"), \
+         patch("pbrew.cli.use.write_versioned_wrappers"), \
+         patch("pbrew.core.wrappers.write_phpd_wrapper"):
+        result = _invoke(prefix, ["switch", "8.4.19"])
+    assert result.exit_code == 0, result.output
+    switch_fish_file = prefix / ".switch.fish"
+    assert switch_fish_file.exists(), ".switch.fish nicht angelegt"
+    content = switch_fish_file.read_text()
+    assert "set -x PBREW_PATH" in content
+    assert "set -x PBREW_ACTIVE" in content
+    assert "8.4.19" in content
+    # Kein Bash-export-Syntax
+    assert "export " not in content
+
+
+def test_unswitch_deletes_switch_fish_file(tmp_path):
+    """pbrew unswitch löscht .switch.fish wenn vorhanden."""
+    prefix = _make_prefix(tmp_path, "8.4", ["8.4.19"], "8.4.19")
+    switch_fish_file = prefix / ".switch.fish"
+    switch_fish_file.write_text('set -x PBREW_PATH "/some/path"\n')
+    result = _invoke(prefix, ["unswitch"])
+    assert result.exit_code == 0, result.output
+    assert not switch_fish_file.exists()

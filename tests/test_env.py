@@ -47,12 +47,28 @@ def test_env_shows_default_family(tmp_path):
     assert "8.4" in result.output
 
 
-def test_env_shows_pbrew_php_when_set(tmp_path):
+def test_env_shows_pbrew_path_when_set(tmp_path):
     _setup_global_state(tmp_path)
-    result = _invoke(tmp_path, tmp_path, env={"PBREW_PHP": "8.3"})
+    result = _invoke(tmp_path, tmp_path, env={"PBREW_PATH": "/home/user/.pbrew/versions/8.3.10/bin"})
     assert result.exit_code == 0, result.output
-    assert "8.3" in result.output
-    assert "PBREW_PHP" in result.output
+    assert "PBREW_PATH" in result.output
+    assert "/home/user/.pbrew/versions/8.3.10/bin" in result.output
+
+
+def test_env_shows_pbrew_active_when_set(tmp_path):
+    _setup_global_state(tmp_path)
+    result = _invoke(tmp_path, tmp_path, env={"PBREW_ACTIVE": "8.3.10"})
+    assert result.exit_code == 0, result.output
+    assert "PBREW_ACTIVE" in result.output
+    assert "8.3.10" in result.output
+
+
+def test_env_shows_dash_when_env_vars_not_set(tmp_path):
+    _setup_global_state(tmp_path)
+    result = _invoke(tmp_path, tmp_path)
+    assert result.exit_code == 0, result.output
+    assert "PBREW_PATH" in result.output
+    assert "PBREW_ACTIVE" in result.output
 
 
 def test_env_shows_naked_wrapper_target(tmp_path):
@@ -79,3 +95,17 @@ def test_env_shows_path_status(tmp_path):
     result = _invoke(tmp_path, tmp_path, env={"PATH": f"{bdir}:/usr/bin"})
     assert result.exit_code == 0, result.output
     assert "PATH" in result.output
+
+
+def test_env_aware_wrapper_shows_env_aware_label(tmp_path):
+    """Wrapper mit $PBREW_PATH zeigt 'ENV-aware ($PBREW_PATH)' statt kaputter Pfad."""
+    bdir = tmp_path / "bin"
+    bdir.mkdir(parents=True, exist_ok=True)
+    # ENV-aware Wrapper wie von write_naked_wrappers erzeugt
+    (bdir / "php").write_text('#!/bin/bash\nexec "$PBREW_PATH/php" "$@"\n')
+    _setup_global_state(tmp_path)
+    result = _invoke(tmp_path, tmp_path)
+    assert result.exit_code == 0, result.output
+    assert "ENV-aware ($PBREW_PATH)" in result.output
+    # Darf nicht den rohen String mit Anführungszeichen zeigen
+    assert '"$PBREW_PATH' not in result.output

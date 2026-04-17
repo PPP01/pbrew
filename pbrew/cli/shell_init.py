@@ -7,7 +7,7 @@ _BASH_INIT = '''\
 export PBREW_ROOT="{prefix}"
 export PATH="{bin_dir}:$PATH"
 
-# pbrew use: setzt PBREW_PHP in der aktuellen Shell
+# pbrew use/switch/unswitch: aktualisiert PBREW_PATH und PBREW_ACTIVE
 pbrew() {{
     local cmd="$1"
     if [ "$cmd" = "use" ] || [ "$cmd" = "switch" ] || [ "$cmd" = "unswitch" ]; then
@@ -51,7 +51,7 @@ function pbrew
     end
 end
 
-test -f "$PBREW_ROOT/.switch" && source "$PBREW_ROOT/.switch"
+test -f "$PBREW_ROOT/.switch.fish" && source "$PBREW_ROOT/.switch.fish"
 '''
 
 

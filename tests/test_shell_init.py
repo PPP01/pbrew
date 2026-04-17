@@ -42,9 +42,9 @@ def test_fish_init_includes_unswitch():
     assert "unswitch" in result.output
 
 
-def test_fish_init_sources_switch_file():
-    """fish-Init sourcet .switch wenn vorhanden."""
+def test_fish_init_sources_switch_fish_file():
+    """fish-Init sourcet .switch.fish (fish-kompatibel) statt .switch."""
     runner = CliRunner()
     result = runner.invoke(main, ["--prefix", "/tmp/test", "shell-init", "fish"])
     assert result.exit_code == 0, result.output
-    assert ".switch" in result.output
+    assert ".switch.fish" in result.output

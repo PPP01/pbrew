@@ -18,8 +18,11 @@ def env_cmd(ctx):
     click.echo("\nUmgebung:")
     click.echo(f"  PBREW_ROOT:   {prefix}")
 
-    pbrew_php = os.environ.get("PBREW_PHP")
-    click.echo(f"  PBREW_PHP:    {pbrew_php or '—'}")
+    pbrew_path = os.environ.get("PBREW_PATH")
+    click.echo(f"  PBREW_PATH:   {pbrew_path or '—'}")
+
+    pbrew_active = os.environ.get("PBREW_ACTIVE")
+    click.echo(f"  PBREW_ACTIVE: {pbrew_active or '—'}")
 
     path = os.environ.get("PATH", "")
     path_contains = str(bdir) in path.split(":")
@@ -45,6 +48,8 @@ def _resolve_wrapper_target(wrapper: Path) -> str:
         text = wrapper.read_text()
     except OSError:
         return "(unlesbar)"
+    if "$PBREW_PATH" in text:
+        return "ENV-aware ($PBREW_PATH)"
     match = re.search(r"exec\s+(\S+)", text)
     if not match:
         return "(Format unbekannt)"

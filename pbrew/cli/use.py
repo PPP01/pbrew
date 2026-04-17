@@ -91,6 +91,12 @@ def switch_cmd(ctx, version_spec):
         f'export PBREW_ACTIVE="{version}"\n'
     )
 
+    switch_fish_file = prefix / ".switch.fish"
+    switch_fish_file.write_text(
+        f'set -x PBREW_PATH "{pbrew_path}"\n'
+        f'set -x PBREW_ACTIVE "{version}"\n'
+    )
+
     click.echo(f'export PBREW_PATH="{pbrew_path}"')
     click.echo(f'export PBREW_ACTIVE="{version}"')
 
@@ -108,5 +114,9 @@ def unswitch_cmd(ctx):
     switch_file = prefix / ".switch"
     if switch_file.exists():
         switch_file.unlink()
+
+    switch_fish_file = prefix / ".switch.fish"
+    if switch_fish_file.exists():
+        switch_fish_file.unlink()
 
     click.echo("unset PBREW_PATH PBREW_ACTIVE")

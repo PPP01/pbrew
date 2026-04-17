@@ -164,7 +164,7 @@ def _resolve_family(prefix: Path, version_spec: "str | None") -> str:
     if version_spec:
         return family_from_version(version_spec)
     import os
-    env = os.environ.get("PBREW_PHP")
+    env = os.environ.get("PBREW_ACTIVE") or os.environ.get("PBREW_PHP")
     if env:
         return family_from_version(env)
     from pbrew.core.state import get_global_state
