@@ -76,7 +76,7 @@ def install_ext_cmd(ctx, ext_name, version_spec, ext_version, jobs):
         click.echo(f"  Lade {ext_name}-{release.version}.tgz herunter...")
         download(release.tarball_url, tarball)
 
-    build_dir = prefix / "build" / f"{ext_name}-{release.version}"
+    build_dir = prefix / "build" / php_version / f"{ext_name}-{release.version}"
     if not build_dir.exists():
         src_dir = extract_tarball(tarball, build_dir.parent)
         if src_dir != build_dir:
