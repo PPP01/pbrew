@@ -1,4 +1,5 @@
 import re
+import sys
 import click
 from pbrew.cli.install import install_cmd
 from pbrew.cli.list_ import list_cmd
@@ -30,17 +31,34 @@ class _PbrewGroup(click.Group):
             args.insert(0, "use")
         return super().resolve_command(ctx, args)
 
+    def invoke(self, ctx):
+        try:
+            return super().invoke(ctx)
+        except (click.ClickException, click.Abort, SystemExit):
+            raise
+        except KeyboardInterrupt:
+            click.echo("\nAbgebrochen.", err=True)
+            sys.exit(130)
+        except Exception as exc:
+            if ctx.obj and ctx.obj.get("debug"):
+                raise
+            click.echo(f"Fehler: {exc}", err=True)
+            click.echo("Tipp: --debug für den vollständigen Traceback.", err=True)
+            sys.exit(1)
+
 
 @click.group(cls=_PbrewGroup, context_settings={"help_option_names": ["-h", "--help"]})
 @click.version_option(None, "-v", "--version", package_name="pbrew")
 @click.option("-p", "--prefix", envvar="PBREW_ROOT", help="pbrew Prefix-Verzeichnis")
+@click.option("--debug", is_flag=True, envvar="PBREW_DEBUG", help="Vollständigen Traceback bei Fehlern anzeigen")
 @click.pass_context
-def main(ctx, prefix):
+def main(ctx, prefix, debug):
     """pbrew — PHP Version Manager"""
     ctx.ensure_object(dict)
     from pbrew.core.paths import get_prefix
     from pathlib import Path
     ctx.obj["prefix"] = Path(prefix) if prefix else get_prefix()
+    ctx.obj["debug"] = debug
 
 
 main.add_command(install_cmd, name="install")

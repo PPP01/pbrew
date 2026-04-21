@@ -25,15 +25,35 @@ def clean_cmd(ctx, version, dry_run):
 
 
 def _clean_version_builds(prefix: Path, version: str, dry_run: bool) -> None:
-    build_dir = prefix / "build" / version
-    if not build_dir.exists():
-        click.echo(f"Kein Build-Verzeichnis für PHP {version} gefunden.")
+    try:
+        family = family_from_version(version)
+    except ValueError:
+        click.echo(f"Ungültige Versionsangabe: {version!r}", err=True)
+        raise SystemExit(1)
+
+    build_root = prefix / "build"
+    entries = []
+    if build_root.exists():
+        for entry in sorted(build_root.iterdir()):
+            if not entry.is_dir():
+                continue
+            try:
+                if family_from_version(entry.name) == family:
+                    entries.append(entry)
+            except ValueError:
+                pass
+
+    if not entries:
+        click.echo(f"Kein Build-Verzeichnis für PHP {family} gefunden.")
         return
-    size_mb = sum(f.stat().st_size for f in build_dir.rglob("*") if f.is_file()) / 1_048_576
-    click.echo(f"  {'[dry-run] ' if dry_run else ''}Entferne build/{version}/ ({size_mb:.0f} MB)")
+
+    for entry in entries:
+        size_mb = sum(f.stat().st_size for f in entry.rglob("*") if f.is_file()) / 1_048_576
+        click.echo(f"  {'[dry-run] ' if dry_run else ''}Entferne build/{entry.name}/ ({size_mb:.0f} MB)")
+        if not dry_run:
+            shutil.rmtree(entry)
     if not dry_run:
-        shutil.rmtree(build_dir)
-    click.echo(f"✓ Build-Verzeichnis für PHP {version} entfernt.")
+        click.echo(f"✓ Build-Verzeichnisse für PHP {family} entfernt.")
 
 
 def _clean_all_builds(prefix: Path, dry_run: bool) -> None:
