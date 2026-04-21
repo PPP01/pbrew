@@ -5,6 +5,7 @@ from pbrew.cli.list_ import list_cmd
 from pbrew.cli.use import use_cmd, switch_cmd, unswitch_cmd
 from pbrew.cli.known import known_cmd
 from pbrew.cli.clean import clean_cmd
+from pbrew.cli.remove import remove_cmd
 from pbrew.cli.log_ import log_cmd
 from pbrew.cli.shell_init import shell_init_cmd
 from pbrew.cli.doctor import doctor_cmd
@@ -49,6 +50,7 @@ main.add_command(switch_cmd, name="switch")
 main.add_command(unswitch_cmd, name="unswitch")
 main.add_command(known_cmd, name="known")
 main.add_command(clean_cmd, name="clean")
+main.add_command(remove_cmd, name="remove")
 main.add_command(log_cmd, name="log")
 main.add_command(shell_init_cmd, name="shell-init")
 main.add_command(doctor_cmd, name="doctor")
