@@ -49,10 +49,10 @@ def append_shell_integration(rc_file: Path, snippet: str) -> None:
         f.write(f"\n# pbrew — hinzugefügt von 'pbrew init'\n{snippet}\n")
 
 
-def write_settings_file(prefix: Path, pbrew_bin: Path) -> Path:
+def write_settings_file(prefix: Path) -> Path:
     """Schreibt prefix/pbrew-settings.sh und gibt deren Pfad zurück."""
-    bin_dir = pbrew_bin.parent
     settings_file = prefix / "pbrew-settings.sh"
+    bin_dir = prefix / "bin"
     content = (
         "# pbrew-settings.sh — generiert von 'pbrew init'\n"
         "# Automatisch erzeugt — Änderungen werden beim nächsten 'pbrew init' überschrieben\n"
@@ -61,7 +61,7 @@ def write_settings_file(prefix: Path, pbrew_bin: Path) -> Path:
         f'export PATH="{bin_dir}:$PATH"\n'
         "\n"
         "pbrew() {\n"
-        '    if [ "$1" = "use" ] || [ "$1" = "switch" ] || [ "$1" = "unswitch" ]; then\n'
+        '    if [ "$1" = "use" ] || [ "$1" = "switch" ] || [ "$1" = "unswitch" ] || [[ "$1" =~ ^[0-9]{2}$ ]] || [[ "$1" =~ ^[0-9]\.[0-9] ]]; then\n'
         "        local _pbrew_out\n"
         '        _pbrew_out="$(command pbrew "$@")"\n'
         "        local _pbrew_rc=$?\n"

@@ -11,7 +11,7 @@ def test_write_settings_file_creates_file(tmp_path):
     prefix = tmp_path / "pbrew"
     prefix.mkdir()
     bin_path = prefix / "bin" / "pbrew"
-    result = write_settings_file(prefix, bin_path)
+    result = write_settings_file(prefix)
     assert result.exists()
 
 
@@ -19,7 +19,7 @@ def test_write_settings_file_contains_pbrew_root(tmp_path):
     prefix = tmp_path / "pbrew"
     prefix.mkdir()
     bin_path = prefix / "bin" / "pbrew"
-    result = write_settings_file(prefix, bin_path)
+    result = write_settings_file(prefix)
     assert f'PBREW_ROOT="{prefix}"' in result.read_text()
 
 
@@ -28,7 +28,7 @@ def test_write_settings_file_contains_path(tmp_path):
     prefix.mkdir()
     bin_dir = prefix / "bin"
     bin_path = bin_dir / "pbrew"
-    result = write_settings_file(prefix, bin_path)
+    result = write_settings_file(prefix)
     assert f'PATH="{bin_dir}:$PATH"' in result.read_text()
 
 
@@ -36,7 +36,7 @@ def test_write_settings_file_contains_pbrew_function(tmp_path):
     prefix = tmp_path / "pbrew"
     prefix.mkdir()
     bin_path = prefix / "bin" / "pbrew"
-    result = write_settings_file(prefix, bin_path)
+    result = write_settings_file(prefix)
     text = result.read_text()
     assert "pbrew()" in text
     # Shell-Syntax: einzelne geschweifte Klammer (kein Python-f-string-Artefakt)
@@ -48,7 +48,7 @@ def test_write_settings_file_contains_switch_sourcing(tmp_path):
     prefix = tmp_path / "pbrew"
     prefix.mkdir()
     bin_path = prefix / "bin" / "pbrew"
-    result = write_settings_file(prefix, bin_path)
+    result = write_settings_file(prefix)
     assert ".switch" in result.read_text()
 
 
@@ -56,7 +56,7 @@ def test_write_settings_file_returns_path(tmp_path):
     prefix = tmp_path / "pbrew"
     prefix.mkdir()
     bin_path = prefix / "bin" / "pbrew"
-    result = write_settings_file(prefix, bin_path)
+    result = write_settings_file(prefix)
     assert isinstance(result, Path)
 
 

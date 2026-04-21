@@ -97,7 +97,7 @@ def _setup_shell_integration(prefix: Path) -> None:
     click.echo("\nShell-Integration:")
 
     # pbrew-settings.sh schreiben – unabhängig von der erkannten Shell
-    settings_file = write_settings_file(prefix, detect_pbrew_bin())
+    settings_file = write_settings_file(prefix)
     click.echo(f"  ✓ {settings_file}")
 
     shell = detect_shell()
