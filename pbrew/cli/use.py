@@ -5,6 +5,7 @@ from pbrew.core.paths import (
     global_state_file,
     state_file,
     version_dir,
+    version_key,
 )
 from pbrew.core.shell import write_switch_files
 from pbrew.core.state import get_family_state, set_active_version, set_global_default
@@ -35,13 +36,17 @@ def _resolve_version(prefix: Path, version_spec: str) -> tuple[str, str]:
     family = family_from_version(version_spec)
     sf = state_file(prefix, family)
     state = get_family_state(sf)
-    version = state.get("active")
-    if not version:
+    installed = [
+        v for v in state.get("installed", {})
+        if version_dir(prefix, v).exists()
+    ]
+    if not installed:
         click.echo(
             f"PHP {family} ist nicht installiert. Zuerst: pbrew install {family}",
             err=True,
         )
         raise SystemExit(1)
+    version = max(installed, key=version_key)
     return version, family
 
 
@@ -61,6 +66,7 @@ def use_cmd(ctx, version_spec):
     pbrew_path = version_dir(prefix, version) / "bin"
     click.echo(f'export PBREW_PATH="{pbrew_path}"')
     click.echo(f'export PBREW_ACTIVE="{version}"')
+    click.echo(f"PHP {version}", err=True)
 
 
 @click.command("switch")
@@ -75,9 +81,9 @@ def switch_cmd(ctx, version_spec):
     prefix: Path = ctx.obj["prefix"]
     version, family = _resolve_version(prefix, version_spec)
 
+    set_active_version(state_file(prefix, family), version)
     if _is_pinned(version_spec):
         write_versioned_wrappers(prefix, version, family)
-        set_active_version(state_file(prefix, family), version)
 
     set_global_default(global_state_file(prefix), family)
     write_naked_wrappers(prefix)
@@ -90,6 +96,7 @@ def switch_cmd(ctx, version_spec):
 
     click.echo(f'export PBREW_PATH="{pbrew_path}"')
     click.echo(f'export PBREW_ACTIVE="{version}"')
+    click.echo(f"PHP {version}", err=True)
 
 
 @click.command("unswitch")
