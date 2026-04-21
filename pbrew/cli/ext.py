@@ -8,7 +8,7 @@ from pbrew.core.paths import (
 from pbrew.core.state import add_extension, get_family_state
 from pbrew.core.wrappers import write_phpd_wrapper
 from pbrew.extensions.installer import extract_tarball, install_extension, write_ext_ini
-from pbrew.extensions.pecl import fetch_latest_stable, fetch_releases
+from pbrew.extensions.pecl import fetch_latest_by_stability, fetch_latest_stable, fetch_releases
 from pbrew.utils.download import download
 
 # Bekannte Zend-Extensions (brauchen zend_extension= statt extension=)
@@ -31,22 +31,43 @@ def ext_cmd():
 @click.pass_context
 def install_ext_cmd(ctx, ext_name, version_spec, ext_version, jobs):
     """Installiert eine PECL-Extension für die aktive (oder angegebene) PHP-Version."""
+    # xdebug@3.5.1 oder xdebug@latest → Name und Version trennen
+    if "@" in ext_name:
+        ext_name, at_version = ext_name.split("@", 1)
+        if at_version and at_version != "latest" and not ext_version:
+            ext_version = at_version
+
+    _STABILITY_KEYWORDS = {"latest", "stable", "beta", "alpha"}
+    stability_request = None
+    if ext_version and ext_version.lower() in _STABILITY_KEYWORDS:
+        kw = ext_version.lower()
+        stability_request = "stable" if kw in {"latest", "stable"} else kw
+        ext_version = None
+
     prefix: Path = ctx.obj["prefix"]
     family = _resolve_family(prefix, version_spec)
     php_version = _resolve_active_version(prefix, family)
 
     click.echo(f"Installiere {ext_name} für PHP {php_version}...")
 
-    if ext_version:
-        releases = fetch_releases(ext_name)
-        release = next((r for r in releases if r.version == ext_version), None)
-        if not release:
-            click.echo(f"Version {ext_version} nicht gefunden.", err=True)
-            raise SystemExit(1)
-    else:
-        click.echo(f"  Suche neueste stabile Version von {ext_name}...")
-        release = fetch_latest_stable(ext_name)
-        click.echo(f"  Neueste stabile Version: {release.version}")
+    try:
+        if ext_version:
+            releases = fetch_releases(ext_name)
+            release = next((r for r in releases if r.version == ext_version), None)
+            if not release:
+                click.echo(f"  Version {ext_version} nicht gefunden.", err=True)
+                raise SystemExit(1)
+        elif stability_request and stability_request != "stable":
+            click.echo(f"  Suche neueste {stability_request}-Version von {ext_name}...")
+            release = fetch_latest_by_stability(ext_name, stability_request)
+            click.echo(f"  Neueste {stability_request}-Version: {release.version}")
+        else:
+            click.echo(f"  Suche neueste stabile Version von {ext_name}...")
+            release = fetch_latest_stable(ext_name)
+            click.echo(f"  Neueste stabile Version: {release.version}")
+    except RuntimeError as e:
+        click.echo(f"  Fehler: {e}", err=True)
+        raise SystemExit(1)
 
     dist_dir = prefix / "distfiles"
     dist_dir.mkdir(parents=True, exist_ok=True)
