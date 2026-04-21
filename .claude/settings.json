@@ -1,35 +1,19 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git status)",
-      "Bash(git diff*)",
-      "Bash(git log*)",
-      "Bash(git fetch*)",
-      "Bash(git merge*)",
-      "Bash(git commit*)",
-      "Bash(git push*)",
-      "Bash(git branch*)",
-      "Bash(git worktree*)",
-      "Bash(git checkout*)",
-      "Bash(git check-ignore*)",
-      "Bash(git -C * add *)",
-      "Bash(git -C * commit*)",
-      "Bash(git -C * push*)",
-      "Bash(git -C * fetch*)",
-      "Bash(git -C * merge*)",
-      "Bash(git -C * worktree*)",
-      "Bash(gh auth*)",
-      "Bash(gh repo*)",
-      "Bash(gh issue*)",
-      "Bash(gh pr*)",
+      "Bash(git *)",
+      "Bash(gh *)",
       "Bash(pytest*)",
       "Bash(pip *)",
       "Bash(python*)",
       "Bash(python3*)",
       "Bash(pbrew *)",
       "Bash(.venv/bin/*)",
+      "Bash(/home/patric/apache/projekte/pbrew/.venv/bin/*)",
       "Bash(/home/patric/apache/projekte/pbrew/.worktrees/*/.venv/bin/*)",
-      "WebSearch"
+      "Bash(PYTHONPATH=*)",
+      "WebSearch",
+      "Read(//home/patric/.pbrew/**)"
     ]
   },
   "hooks": {

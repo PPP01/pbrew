@@ -24,17 +24,26 @@ def ext_cmd():
 
 
 @ext_cmd.command("install")
-@click.argument("ext_name")
-@click.argument("version_spec", required=False)
+@click.argument("ext_name", metavar="EXT[@VERSION]")
+@click.argument("version_spec", required=False, metavar="[PHP-VERSION]")
 @click.option("-v", "--version", "ext_version", default=None, help="Exakte Extension-Version")
-@click.option("-j", "--jobs", type=int, default=None)
+@click.option("-j", "--jobs", type=int, default=None, help="Parallele Build-Jobs")
 @click.pass_context
 def install_ext_cmd(ctx, ext_name, version_spec, ext_version, jobs):
-    """Installiert eine PECL-Extension für die aktive (oder angegebene) PHP-Version."""
-    # xdebug@3.5.1 oder xdebug@latest → Name und Version trennen
+    """Installiert eine PECL-Extension für die aktive (oder angegebene) PHP-Version.
+
+    EXT[@VERSION] – Name der Extension, optional mit Version oder Stabilitätsstufe:
+
+    \b
+      pbrew ext install xdebug            # neueste stabile Version
+      pbrew ext install xdebug@beta       # neueste Beta-Version
+      pbrew ext install xdebug@alpha      # neueste Alpha-Version
+      pbrew ext install xdebug@3.4.0      # exakte Version
+      pbrew ext install xdebug 84         # für PHP 8.4
+    """
     if "@" in ext_name:
         ext_name, at_version = ext_name.split("@", 1)
-        if at_version and at_version != "latest" and not ext_version:
+        if at_version and not ext_version:
             ext_version = at_version
 
     _STABILITY_KEYWORDS = {"latest", "stable", "beta", "alpha"}
@@ -88,8 +97,9 @@ def install_ext_cmd(ctx, ext_name, version_spec, ext_version, jobs):
     config = load_config(configs_dir(prefix), family)
     num_jobs = get_jobs(config, override=jobs)
 
-    log_path = logs_dir(prefix) / f"{ext_name}-{release.version}-{php_version}.log"
-    logs_dir(prefix).mkdir(parents=True, exist_ok=True)
+    _logs = logs_dir(prefix)
+    _logs.mkdir(parents=True, exist_ok=True)
+    log_path = _logs / f"{ext_name}-{release.version}-{php_version}.log"
 
     click.echo(f"  Baue {ext_name} {release.version}...")
     with open(log_path, "w") as log:
