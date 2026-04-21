@@ -123,8 +123,9 @@ def _do_upgrade(ctx, prefix: Path, family: str, current: str, latest) -> None:
                        ext_version=None, jobs=None)
 
     # Symlinks aktualisieren (write_versioned_wrappers ist der neue _update_wrappers)
-    from pbrew.core.wrappers import write_versioned_wrappers
+    from pbrew.core.wrappers import write_naked_wrappers, write_versioned_wrappers
     write_versioned_wrappers(prefix, latest.version, family)
+    write_naked_wrappers(prefix)
 
     # FPM neustarten (wenn Service existiert)
     try:

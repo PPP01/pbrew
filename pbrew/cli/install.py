@@ -110,8 +110,7 @@ def install_cmd(ctx, version_spec, config_name, save, jobs, skip_lib_check):
     )
 
     write_versioned_wrappers(prefix, version, family)
-    if not (prefix / "bin" / "php").exists():
-        write_naked_wrappers(prefix)
+    write_naked_wrappers(prefix)
 
     # FPM-Setup: Pool-Dirs, php-fpm.conf, systemd-Unit (+ Debug-Wrapper wenn xdebug aktiv)
     from pbrew.cli.fpm import setup_fpm
