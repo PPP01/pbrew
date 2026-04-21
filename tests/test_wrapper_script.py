@@ -29,16 +29,11 @@ def test_wrapper_no_pip_install():
     assert "pip install" not in content
 
 
-def test_wrapper_contains_use_switch_handling():
-    """use/switch brauchen Sonderbehandlung um Parent-Env zu aendern."""
+def test_wrapper_delegates_all_commands_via_exec():
+    """Wrapper leitet alle Befehle per exec weiter – eval übernimmt die Shell-Funktion."""
     content = generate_wrapper_script(Path("/home/alice/.pbrew"))
-    assert "use|switch" in content
-
-
-def test_wrapper_script_includes_unswitch():
-    """Wrapper-Script behandelt unswitch im case-Statement."""
-    content = generate_wrapper_script(Path("/tmp/test"))
-    assert "unswitch" in content
+    assert 'exec "$PBREW_PYTHON_BIN" "$@"' in content
+    assert "case" not in content
 
 
 def test_wrapper_contains_exec_for_normal_commands():
