@@ -13,6 +13,7 @@ class PhpRelease:
     family: str         # "8.4"
     tarball_url: str    # "https://www.php.net/distributions/php-8.4.22.tar.bz2"
     sha256: str
+    eol: bool = False
 
 
 def _fetch_json(url: str) -> dict:
@@ -75,23 +76,36 @@ def fetch_specific(version: str) -> PhpRelease:
     return release
 
 
-def fetch_known(major: int = 8) -> list[PhpRelease]:
+def fetch_known(major: int = 8, include_eol: bool = False) -> list[PhpRelease]:
     """Gibt alle bekannten Releases für eine Major-Version zurück.
 
     Fragt zuerst die supported_versions ab, dann pro Family alle Releases.
-    Die php.net-API liefert bei version={major} ohne max= ein flaches Objekt
-    (kein Dict mit Versions-Keys) — daher der zweistufige Ansatz.
+    Mit include_eol=True werden zusätzlich EOL-Families (Minor 0–9) geprobt.
     """
     meta = _fetch_json(f"{PHP_RELEASES_URL}?json=1&version={major}")
-    families: list[str] = meta.get("supported_versions", [])
+    supported: set[str] = set(meta.get("supported_versions", []))
+
+    families: list[str] = sorted(supported, reverse=True)
+    if include_eol or not supported:
+        for minor in range(9, -1, -1):
+            family = f"{major}.{minor}"
+            if family not in supported:
+                families.append(family)
+
     if not families:
-        raise RuntimeError(f"Keine unterstützten PHP-{major}.x Families gefunden")
+        raise RuntimeError(f"Keine PHP-{major}.x Families gefunden")
 
     releases = []
     for family in families:
-        data = _fetch_json(f"{PHP_RELEASES_URL}?json=1&version={family}&max=100")
+        try:
+            data = _fetch_json(f"{PHP_RELEASES_URL}?json=1&version={family}&max=100")
+        except Exception:
+            continue
+        if not data:
+            continue
         for version, release_data in data.items():
             release = _parse_release(version, release_data)
             if release:
+                release.eol = family not in supported
                 releases.append(release)
     return sorted(releases, key=lambda r: version_key(r.version), reverse=True)
