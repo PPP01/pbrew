@@ -1,3 +1,4 @@
+import re
 import click
 from pbrew.cli.install import install_cmd
 from pbrew.cli.list_ import list_cmd
@@ -19,7 +20,17 @@ from pbrew.cli.upgrade import upgrade_cmd, rollback_cmd
 from pbrew.cli.config_ import config_cmd
 
 
-@click.group()
+_VERSION_RE = re.compile(r"^\d{2}$|^\d\.\d+(\.\d+)?$")
+
+
+class _PbrewGroup(click.Group):
+    def resolve_command(self, ctx, args):
+        if args and _VERSION_RE.match(args[0]):
+            args.insert(0, "use")
+        return super().resolve_command(ctx, args)
+
+
+@click.group(cls=_PbrewGroup, context_settings={"help_option_names": ["-h", "--help"]})
 @click.version_option(None, "-v", "--version", package_name="pbrew")
 @click.option("-p", "--prefix", envvar="PBREW_ROOT", help="pbrew Prefix-Verzeichnis")
 @click.pass_context
