@@ -2,6 +2,8 @@ import json
 import urllib.request
 from dataclasses import dataclass
 
+from pbrew.core.paths import version_key
+
 PHP_RELEASES_URL = "https://www.php.net/releases/index.php"
 
 
@@ -92,4 +94,4 @@ def fetch_known(major: int = 8) -> list[PhpRelease]:
             release = _parse_release(version, release_data)
             if release:
                 releases.append(release)
-    return sorted(releases, key=lambda r: tuple(int(x) for x in r.version.split(".")), reverse=True)
+    return sorted(releases, key=lambda r: version_key(r.version), reverse=True)
