@@ -77,6 +77,10 @@ def install_cmd(ctx, version_spec, config_name, save, jobs, skip_lib_check):
         if extracted.exists() and not build_dir.exists():
             extracted.rename(build_dir)
 
+        from pbrew.core.patches import apply_compat_patches
+        for patch in apply_compat_patches(build_dir, version):
+            click.echo(f"  Patch: {patch}")
+
     log_path = build_log(prefix, version)
     logs_dir(prefix).mkdir(parents=True, exist_ok=True)
     cli_ini_dir(prefix, family).mkdir(parents=True, exist_ok=True)
@@ -88,9 +92,17 @@ def install_cmd(ctx, version_spec, config_name, save, jobs, skip_lib_check):
 
     start = time.monotonic()
     with open(log_path, "w") as log:
+        from pbrew.core.patches import prepare_configure_env
+        extra_path = prepare_configure_env(build_dir, version)
         args = builder.build_configure_args(prefix, version, family, config)
-        _run_phase("configure", lambda: builder.run_configure(build_dir, args, log),
-                   build_dir, log_path)
+        _run_phase(
+            "configure",
+            lambda: builder.run_configure(build_dir, args, log, extra_path=extra_path),
+            build_dir, log_path,
+        )
+        from pbrew.core.patches import apply_post_configure_patches
+        for patch in apply_post_configure_patches(build_dir, version):
+            click.echo(f"  Patch: {patch}")
         _run_phase(f"make -j{num_jobs}", lambda: builder.run_make(build_dir, num_jobs, log),
                    build_dir, log_path)
         _run_phase("make install", lambda: builder.run_make_install(build_dir, log),
