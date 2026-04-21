@@ -64,5 +64,5 @@ def test_fetch_latest_stable_raises_when_no_stable():
 </a>"""
     with patch("pbrew.extensions.pecl.urllib.request.urlopen",
                return_value=_mock_urlopen(xml_only_beta)):
-        with pytest.raises(RuntimeError, match="[Kk]ein stabiles"):
+        with pytest.raises(RuntimeError, match="[Kk]ein stable"):
             fetch_latest_stable("myext")
