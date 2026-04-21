@@ -8,13 +8,10 @@ def extract_tarball(tarball: Path, dest_dir: Path) -> Path:
     """Entpackt Tarball nach dest_dir, gibt das Source-Verzeichnis zurück."""
     dest_dir.mkdir(parents=True, exist_ok=True)
     with tarfile.open(tarball) as tar:
-        # PECL-Tarballs enthalten package.xml vor dem Quellverzeichnis –
-        # daher das erste Directory-Member suchen, nicht einfach getnames()[0].
-        top_level = next(
-            (m.name.rstrip("/") for m in tar.getmembers()
-             if m.isdir() and "/" not in m.name.rstrip("/")),
-            tar.getnames()[0].split("/")[0],
-        )
+        # PECL-Tarballs haben package.xml auf Root-Ebene und kein explizites
+        # Verzeichnis-Member. Daher: alle Namen mit "/" suchen → Top-Segment.
+        top_dirs = {name.split("/")[0] for name in tar.getnames() if "/" in name}
+        top_level = top_dirs.pop() if len(top_dirs) == 1 else tar.getnames()[0].split("/")[0]
         tar.extractall(dest_dir, filter="data")
     return dest_dir / top_level
 
