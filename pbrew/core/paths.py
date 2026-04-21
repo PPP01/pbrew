@@ -33,6 +33,11 @@ def family_from_version(version: str) -> str:
     raise ValueError(f"Ungültige Versionsangabe: {version!r}")
 
 
+def version_key(version: str) -> tuple[int, ...]:
+    """Sortierschlüssel für semantische Versionsvergleiche: '8.4.20' → (8, 4, 20)."""
+    return tuple(int(x) for x in version.split("."))
+
+
 def family_suffix(family: str) -> str:
     """'8.4' -> '84' (für Wrapper-Namen wie php84, phpize84)."""
     return family.replace(".", "")
@@ -60,6 +65,10 @@ def fpm_ini_dir(prefix: Path, family: str) -> Path:
 
 def confd_dir(prefix: Path, family: str) -> Path:
     return etc_dir(prefix) / "conf.d" / family
+
+
+def confd_debug_dir(prefix: Path, family: str) -> Path:
+    return etc_dir(prefix) / "conf.d" / f"{family}d"
 
 
 def distfiles_dir(prefix: Path) -> Path:

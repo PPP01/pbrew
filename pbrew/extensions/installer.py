@@ -46,9 +46,16 @@ def write_ext_ini(
     family: str,
     ext_name: str,
     is_zend: bool = False,
+    debug: bool = False,
 ) -> Path:
-    """Schreibt Extension-INI in den shared scan-dir. Bestehende nie überschreiben."""
-    ini_dir = prefix / "etc" / "conf.d" / family
+    """Schreibt Extension-INI in den scan-dir.
+
+    debug=True schreibt in conf.d/<family>d/ (nur von phpd geladen),
+    sonst in conf.d/<family>/ (von php und phpd geladen).
+    Bestehende INIs werden nie überschrieben.
+    """
+    from pbrew.core.paths import confd_debug_dir, confd_dir
+    ini_dir = confd_debug_dir(prefix, family) if debug else confd_dir(prefix, family)
     ini_dir.mkdir(parents=True, exist_ok=True)
     ini = ini_dir / f"{ext_name}.ini"
     if ini.exists():

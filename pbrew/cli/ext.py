@@ -6,12 +6,16 @@ from pbrew.core.paths import (
     family_from_version, logs_dir, state_file,
 )
 from pbrew.core.state import add_extension, get_family_state
+from pbrew.core.wrappers import write_phpd_wrapper
 from pbrew.extensions.installer import extract_tarball, install_extension, write_ext_ini
 from pbrew.extensions.pecl import fetch_latest_stable, fetch_releases
 from pbrew.utils.download import download
 
 # Bekannte Zend-Extensions (brauchen zend_extension= statt extension=)
 _ZEND_EXTENSIONS = {"xdebug", "opcache", "ioncube_loader"}
+
+# Extensions die nur in phpd (Debug-Scan-Dir) geladen werden sollen, nicht in php
+_DEBUG_EXTENSIONS = {"xdebug"}
 
 
 @click.group("ext")
@@ -76,11 +80,15 @@ def install_ext_cmd(ctx, ext_name, version_spec, ext_version, jobs):
             raise SystemExit(1)
 
     is_zend = ext_name.lower() in _ZEND_EXTENSIONS
-    ini = write_ext_ini(prefix, family, ext_name, is_zend=is_zend)
+    is_debug = ext_name.lower() in _DEBUG_EXTENSIONS
+    ini = write_ext_ini(prefix, family, ext_name, is_zend=is_zend, debug=is_debug)
     click.echo(f"  INI: {ini}")
 
     sf = state_file(prefix, family)
     add_extension(sf, ext_name)
+
+    write_phpd_wrapper(prefix, php_version)
+
     click.echo(f"✓ {ext_name} {release.version} installiert.")
 
 
@@ -98,6 +106,9 @@ def remove_ext_cmd(ctx, ext_name, version_spec):
         raise SystemExit(1)
     disabled = ini.with_suffix(".ini.disabled")
     ini.rename(disabled)
+    if ext_name.lower() == "xdebug":
+        php_version = _resolve_active_version(prefix, family)
+        write_phpd_wrapper(prefix, php_version)
     click.echo(f"✓ {ext_name} deaktiviert (INI: {disabled})")
 
 

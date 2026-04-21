@@ -141,7 +141,9 @@ def test_write_phpd_wrapper_creates_wrapper_when_xdebug_present(tmp_path):
     assert phpd.exists()
     assert phpd.stat().st_mode & 0o111
     content = phpd.read_text()
-    assert "-dzend_extension=" in content
+    assert "PHP_INI_SCAN_DIR" in content
+    assert "conf.d" in content
+    assert "$PBREW_PATH" in content
 
 
 # ---------------------------------------------------------------------------
@@ -153,7 +155,11 @@ def test_switch_updates_naked_wrappers(tmp_path):
     # State vorbereiten: 8.4.22 installiert und aktiv
     state_dir = tmp_path / "state"
     state_dir.mkdir()
-    (state_dir / "8.4.json").write_text(json.dumps({"active": "8.4.22"}))
+    (state_dir / "8.4.json").write_text(json.dumps({
+        "active": "8.4.22",
+        "installed": {"8.4.22": {"installed_at": "2026-01-01T00:00:00+00:00"}},
+    }))
+    (tmp_path / "versions" / "8.4.22" / "bin").mkdir(parents=True)
     (tmp_path / "bin").mkdir()
     # Versioned wrapper muss existieren damit naked wrapper drauf zeigen kann
     (tmp_path / "bin" / "php84").write_text("#!/bin/bash\n")
