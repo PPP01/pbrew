@@ -23,7 +23,7 @@ from pbrew.utils.health import run_basic_checks
 @click.option("--save", is_flag=True, help="Config nach dem Build speichern")
 @click.option("-j", "--jobs", type=int, default=None, help="Parallele Build-Jobs")
 @click.option("--skip-lib-check", is_flag=True, help="Überspringt den Pre-Flight-Check der Build-Libraries")
-@click.option("--force", is_flag=True, help="Erzwingt Neubau auch wenn die Version bereits installiert ist")
+@click.option("--force", "-f", is_flag=True, help="Erzwingt Neubau auch wenn die Version bereits installiert ist")
 @click.pass_context
 def install_cmd(ctx, version_spec, config_name, save, jobs, skip_lib_check, force):
     """PHP aus dem Quellcode bauen und installieren."""
