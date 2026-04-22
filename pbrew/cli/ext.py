@@ -320,6 +320,32 @@ def _query_extensions(
     return loaded, local, standard
 
 
+def _collect_add_candidates(
+    *,
+    loaded: dict[str, tuple[str, str]],
+    local: list[str],
+    standard: list[str],
+    pbrew_active: set[str],
+    active_variants: set[str],
+) -> tuple[list[str], list[str], list[str]]:
+    from pbrew.core.builder import VARIANT_EXTENSIONS
+
+    local_candidates = [n for n in local if n.lower() not in pbrew_active]
+
+    known = {n.lower() for n in loaded}
+    known |= {n.lower() for n in local}
+    known |= {n.lower() for n in standard}
+    pecl_candidates = sorted(
+        n for n in _PECL_SUGGESTIONS if n.lower() not in known
+    )
+
+    rebuild_candidates = sorted(
+        n for n in standard
+        if n in VARIANT_EXTENSIONS and n not in active_variants
+    )
+    return local_candidates, pecl_candidates, rebuild_candidates
+
+
 def _resolve_family(prefix: Path, version_spec: "str | None") -> str:
     if version_spec:
         return family_from_version(version_spec)
