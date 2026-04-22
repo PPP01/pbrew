@@ -43,12 +43,17 @@ def install_cmd(ctx, version_spec, config_name, save, jobs, skip_lib_check, forc
         click.echo(f"  Neueste Version: {version}")
 
     vdir = version_dir(prefix, version)
+    build_dir = prefix / "build" / version
     if vdir.exists():
         if not force:
             click.echo(f"  PHP {version} ist bereits installiert: {vdir}")
             return
         click.echo(f"  PHP {version} bereits installiert – erzwinge Neubau...")
         shutil.rmtree(vdir)
+        # Build-Tree ebenfalls bereinigen: config.cache enthält gecachte
+        # Testergebnisse, die nach Lib-Änderungen veraltet sein können.
+        if build_dir.exists():
+            shutil.rmtree(build_dir)
 
     cfgs_dir = configs_dir(prefix)
     cfg_mod.init_default_config(cfgs_dir)
@@ -70,7 +75,6 @@ def install_cmd(ctx, version_spec, config_name, save, jobs, skip_lib_check, forc
     else:
         click.echo(f"  Nutze gecachten Tarball: {tarball}")
 
-    build_dir = prefix / "build" / version
     if not build_dir.exists():
         click.echo(f"  Entpacke nach {build_dir}...")
         build_dir.parent.mkdir(parents=True, exist_ok=True)

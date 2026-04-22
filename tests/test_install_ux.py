@@ -1,4 +1,5 @@
 """Tests für den Install-Output (nicht den echten Build – der läuft per Integrationstest)."""
+import io
 import json
 import os
 import tarfile
@@ -21,11 +22,24 @@ def _make_release(version="8.4.22"):
     )
 
 
-def _prepare_prefix(prefix: Path, version="8.4.22"):
-    """Legt alles außer versions/<v>/ an – das erzeugt erst der gemockte 'make install'."""
+def _prepare_prefix(prefix: Path, version="8.4.22", *, real_tarball: bool = False):
+    """Legt alles außer versions/<v>/ an – das erzeugt erst der gemockte 'make install'.
+
+    real_tarball=True: erstellt ein gültiges Minimal-bz2-Archiv statt leerer Bytes.
+    Nötig wenn --force den build_dir löscht und der Tarball wirklich geöffnet wird.
+    """
     for sub in ("distfiles", "state", "bin", "etc", "configs"):
         (prefix / sub).mkdir(parents=True, exist_ok=True)
-    (prefix / "distfiles" / f"php-{version}.tar.bz2").write_bytes(b"")
+    if real_tarball:
+        buf = io.BytesIO()
+        with tarfile.open(fileobj=buf, mode="w:bz2") as tar:
+            d = tarfile.TarInfo(name=f"php-{version}")
+            d.type = tarfile.DIRTYPE
+            d.mode = 0o755
+            tar.addfile(d)
+        (prefix / "distfiles" / f"php-{version}.tar.bz2").write_bytes(buf.getvalue())
+    else:
+        (prefix / "distfiles" / f"php-{version}.tar.bz2").write_bytes(b"")
     build_dir = prefix / "build" / version
     build_dir.mkdir(parents=True)
     return build_dir
@@ -143,10 +157,11 @@ def test_install_skips_build_if_already_installed(tmp_path):
 
 
 def test_install_force_rebuilds_existing_version(tmp_path):
-    """--force überschreibt ein vorhandenes version_dir und startet den Build neu."""
+    """--force löscht build_dir + vdir und startet den Build komplett neu."""
     version = "8.4.22"
     prefix = tmp_path / "pbrew"
-    _prepare_prefix(prefix, version)
+    # real_tarball=True: --force löscht build_dir, der Tarball wird wirklich geöffnet
+    _prepare_prefix(prefix, version, real_tarball=True)
     # Version-Dir schon vorhanden
     (prefix / "versions" / version / "bin").mkdir(parents=True)
     runner = CliRunner()
