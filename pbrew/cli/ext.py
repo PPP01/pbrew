@@ -154,6 +154,102 @@ def remove_ext_cmd(ctx, ext_name, version_spec):
     click.echo(f"✓ {ext_name} deaktiviert (INI: {disabled})")
 
 
+def _is_tty() -> bool:
+    """Prueft ob stdin ein TTY ist (separat fuer Tests mockbar)."""
+    import sys
+    return sys.stdin.isatty()
+
+
+@ext_cmd.command("add")
+@click.argument("version_spec", required=False, metavar="[PHP-VERSION]")
+@click.pass_context
+def add_ext_cmd(ctx, version_spec):
+    """Interaktiv Extensions hinzufuegen (lokal aktivieren, PECL, Rebuild)."""
+    if not _is_tty():
+        click.echo("Interaktiver Modus benoetigt ein TTY.", err=True)
+        raise SystemExit(2)
+
+    prefix: Path = ctx.obj["prefix"]
+    family = _resolve_family(prefix, version_spec)
+    php_version = _resolve_active_version(prefix, family)
+    php_bin = version_bin(prefix, php_version, "php")
+
+    from pbrew.core.paths import configs_dir as _cfg_dir
+    from pbrew.core.config import load_config
+    cfg_path = _cfg_dir(prefix)
+    active_cfg = load_config(cfg_path, family)
+    active_variants = set(active_cfg.get("build", {}).get("variants", []))
+
+    confd = prefix / "etc" / "conf.d" / family
+    pbrew_active = {
+        ini.stem.lower()
+        for ini in (confd.glob("*.ini") if confd.exists() else [])
+        if ini.stem != "00-base"
+    }
+
+    loaded, local, standard = _query_extensions(php_bin)
+    local_c, pecl_c, rebuild_c = _collect_add_candidates(
+        loaded=loaded, local=local, standard=standard,
+        pbrew_active=pbrew_active, active_variants=active_variants,
+    )
+
+    groups = {
+        "Lokale .so": local_c,
+        "PECL": pecl_c,
+        "Standard (Rebuild)": rebuild_c,
+    }
+    picked = _prompt_multiselect(
+        f"Extensions fuer PHP {family} hinzufuegen:", groups,
+    )
+    if not picked:
+        click.echo("Nichts ausgewaehlt – abgebrochen.")
+        return
+
+    summary: list[str] = []
+
+    for name in picked.get("Lokale .so", []):
+        is_zend = name.lower() in _ZEND_EXTENSIONS
+        is_debug = name.lower() in _DEBUG_EXTENSIONS
+        write_ext_ini(prefix, family, name, is_zend=is_zend, debug=is_debug)
+        summary.append(f"  [aktiviert]  {name}")
+
+    for name in picked.get("PECL", []):
+        try:
+            _install_pecl_extension(ctx, name, family)
+            summary.append(f"  [installiert] {name}")
+        except SystemExit:
+            summary.append(f"  [FEHLER]     {name}")
+
+    rebuild_picks = picked.get("Standard (Rebuild)", [])
+    if rebuild_picks:
+        target = _prompt_config_choice(cfg_path, family)
+        if target is None:
+            click.echo("Config-Auswahl abgebrochen – Rebuild-Gruppe uebersprungen.")
+        else:
+            if not target.exists():
+                _update_config_variants(target, list(active_variants) + rebuild_picks)
+            else:
+                _update_config_variants(target, rebuild_picks)
+            summary.append(
+                f"  [rebuild]    {', '.join(rebuild_picks)} → {target.name}"
+            )
+            click.echo(
+                f"\nHinweis: PHP {family} neu bauen, damit die Variants "
+                f"wirksam werden:\n  pbrew install {family} --config "
+                f"{target.stem}"
+            )
+
+    click.echo("\nZusammenfassung:")
+    for line in summary:
+        click.echo(line)
+
+
+def _install_pecl_extension(ctx, ext_name: str, family: str) -> None:
+    """Wrapper um den bestehenden ext install-Flow fuer programmatische Aufrufe."""
+    ctx.invoke(install_ext_cmd, ext_name=ext_name, version_spec=family,
+               ext_version=None, jobs=None)
+
+
 @ext_cmd.command("enable")
 @click.argument("ext_name")
 @click.argument("version_spec", required=False)
