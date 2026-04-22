@@ -135,23 +135,119 @@ def install_ext_cmd(ctx, ext_name, version_spec, ext_version, jobs):
 
 
 @ext_cmd.command("remove")
-@click.argument("ext_name")
+@click.argument("ext_name", required=False)
 @click.argument("version_spec", required=False)
 @click.pass_context
 def remove_ext_cmd(ctx, ext_name, version_spec):
-    """Deaktiviert eine Extension (verschiebt INI zu .disabled)."""
+    """Deaktiviert/entfernt Extensions. Ohne EXT interaktiv."""
+    # Wenn nur ein Argument übergeben wurde und es wie eine PHP-Version
+    # aussieht (z.B. "8.4", "84", "8.3.1"), wird interaktiver Modus
+    # gestartet und das Argument als version_spec interpretiert.
+    import re as _re
+    if ext_name and not version_spec and _re.fullmatch(r"\d+\.?\d*\.?\d*", ext_name):
+        version_spec = ext_name
+        ext_name = None
+
+    if ext_name:
+        prefix: Path = ctx.obj["prefix"]
+        family = _resolve_family(prefix, version_spec)
+        ini = prefix / "etc" / "conf.d" / family / f"{ext_name}.ini"
+        if not ini.exists():
+            click.echo(f"{ext_name}.ini nicht gefunden für PHP {family}.", err=True)
+            raise SystemExit(1)
+        disabled = ini.with_suffix(".ini.disabled")
+        ini.rename(disabled)
+        if ext_name.lower() == "xdebug":
+            php_version = _resolve_active_version(prefix, family)
+            write_phpd_wrapper(prefix, php_version)
+        click.echo(f"✓ {ext_name} deaktiviert (INI: {disabled})")
+        return
+
+    _remove_ext_interactive(ctx, version_spec)
+
+
+def _remove_ext_interactive(ctx, version_spec):
+    """Interaktiver Modus für ext remove: Extensions per Auswahl entfernen."""
+    if not _is_tty():
+        click.echo("Interaktiver Modus benoetigt ein TTY.", err=True)
+        raise SystemExit(2)
+
     prefix: Path = ctx.obj["prefix"]
     family = _resolve_family(prefix, version_spec)
-    ini = prefix / "etc" / "conf.d" / family / f"{ext_name}.ini"
-    if not ini.exists():
-        click.echo(f"{ext_name}.ini nicht gefunden für PHP {family}.", err=True)
-        raise SystemExit(1)
-    disabled = ini.with_suffix(".ini.disabled")
-    ini.rename(disabled)
-    if ext_name.lower() == "xdebug":
-        php_version = _resolve_active_version(prefix, family)
-        write_phpd_wrapper(prefix, php_version)
-    click.echo(f"✓ {ext_name} deaktiviert (INI: {disabled})")
+    php_version = _resolve_active_version(prefix, family)
+    php_bin = version_bin(prefix, php_version, "php")
+
+    confd = prefix / "etc" / "conf.d" / family
+    active_inis = sorted(
+        ini.stem for ini in (confd.glob("*.ini") if confd.exists() else [])
+        if ini.stem != "00-base"
+    )
+    disabled_inis = sorted(
+        ini.name.removesuffix(".ini.disabled")
+        for ini in (confd.glob("*.ini.disabled") if confd.exists() else [])
+    )
+
+    from pbrew.core.builder import VARIANT_EXTENSIONS
+    from pbrew.core.paths import configs_dir as _cfg_dir
+    from pbrew.core.config import load_config
+    cfg_path = _cfg_dir(prefix)
+    active_cfg = load_config(cfg_path, family)
+    active_variants = set(active_cfg.get("build", {}).get("variants", []))
+
+    loaded, _local, _standard = _query_extensions(php_bin)
+    loaded_lower = {n.lower() for n in loaded}
+    compiled_variants = sorted(
+        v for v in active_variants
+        if v in VARIANT_EXTENSIONS and v.lower() in loaded_lower
+    )
+
+    groups = {
+        "Aktive pbrew-INI":     active_inis,
+        "Inaktive pbrew-INI":   disabled_inis,
+        "Kompiliert (Rebuild)": compiled_variants,
+    }
+    picked = _prompt_multiselect(
+        f"Extensions fuer PHP {family} entfernen:", groups,
+    )
+    if not picked:
+        click.echo("Nichts ausgewaehlt – abgebrochen.")
+        return
+
+    summary: list[str] = []
+
+    for name in picked.get("Aktive pbrew-INI", []):
+        ini = confd / f"{name}.ini"
+        if ini.exists():
+            ini.rename(ini.with_suffix(".ini.disabled"))
+            summary.append(f"  [deaktiviert] {name}")
+
+    for name in picked.get("Inaktive pbrew-INI", []):
+        ini = confd / f"{name}.ini.disabled"
+        if ini.exists():
+            ini.unlink()
+            summary.append(f"  [geloescht]   {name}")
+
+    rebuild_picks = picked.get("Kompiliert (Rebuild)", [])
+    if rebuild_picks:
+        target = _prompt_config_choice(cfg_path, family)
+        if target is None or not target.exists():
+            click.echo("Config-Auswahl abgebrochen oder nicht gefunden.")
+        else:
+            removed = _remove_config_variants(target, rebuild_picks)
+            if removed:
+                summary.append(
+                    f"  [rebuild]     {', '.join(removed)} "
+                    f"entfernt aus {target.name}"
+                )
+                click.echo(
+                    f"\nHinweis: PHP {family} neu bauen, damit die Aenderung "
+                    f"wirksam wird:\n  pbrew install {family} --config "
+                    f"{target.stem}"
+                )
+
+    click.echo("\nZusammenfassung:")
+    for line in summary:
+        click.echo(line)
 
 
 def _is_tty() -> bool:
