@@ -2,7 +2,7 @@ import json
 import os
 from pathlib import Path
 from subprocess import CompletedProcess
-from unittest.mock import call, patch
+from unittest.mock import patch
 
 from click.testing import CliRunner
 
@@ -105,6 +105,24 @@ def test_extension_uses_global_default_family(tmp_path):
 
     assert result.exit_code == 0, result.output
     assert "json" in result.output
+
+
+def test_extension_shows_standard_extensions_not_compiled(tmp_path):
+    _setup_version(tmp_path)
+    ext_dir = _fake_ext_dir(tmp_path, [])
+    # Nur json ist geladen; gmp und mbstring sind Standard-Extensions, aber nicht geladen
+    ext_output = "json|8.4.22\n"
+
+    with patch("pbrew.cli.ext.subprocess.run", side_effect=_make_run(ext_output, ext_dir)):
+        result = _invoke(tmp_path, tmp_path, "extension", "8.4")
+
+    assert result.exit_code == 0, result.output
+    assert "Standard extensions (not compiled):" in result.output
+    assert "gmp" in result.output
+    assert "mbstring" in result.output
+    # json ist geladen, darf nicht in der Standard-Liste erscheinen
+    loaded_section_end = result.output.index("Standard extensions")
+    assert result.output.count("json") == 1  # nur einmal in Loaded, nicht nochmal
 
 
 def test_extension_error_when_no_active_version(tmp_path):
