@@ -1,10 +1,16 @@
+import re
 import subprocess
+import sys
 from pathlib import Path
 
 import click
+import questionary
+import tomlkit
 
+from pbrew.core.config import load_config
+from pbrew.core.builder import VARIANT_EXTENSIONS
 from pbrew.core.paths import (
-    family_from_version, logs_dir, state_file, version_bin,
+    confd_dir, configs_dir, family_from_version, logs_dir, state_file, version_bin,
 )
 from pbrew.core.state import add_extension, get_family_state
 from pbrew.core.wrappers import write_phpd_wrapper
@@ -17,6 +23,14 @@ _ZEND_EXTENSIONS = {"xdebug", "opcache", "ioncube_loader"}
 
 # Extensions die nur in phpd (Debug-Scan-Dir) geladen werden sollen, nicht in php
 _DEBUG_EXTENSIONS = {"xdebug"}
+
+# Kuratierte Liste populärer PECL-Extensions als Vorauswahl in `ext add`.
+_PECL_SUGGESTIONS: frozenset[str] = frozenset({
+    "apcu", "ast", "ds", "event", "grpc", "igbinary", "imagick",
+    "mailparse", "memcache", "memcached", "mongodb", "msgpack",
+    "oauth", "protobuf", "rdkafka", "redis", "swoole", "uuid",
+    "uopz", "xdebug", "yaml", "zstd",
+})
 
 
 @click.group("ext")
@@ -125,23 +139,210 @@ def install_ext_cmd(ctx, ext_name, version_spec, ext_version, jobs):
 
 
 @ext_cmd.command("remove")
-@click.argument("ext_name")
+@click.argument("ext_name", required=False)
 @click.argument("version_spec", required=False)
 @click.pass_context
 def remove_ext_cmd(ctx, ext_name, version_spec):
-    """Deaktiviert eine Extension (verschiebt INI zu .disabled)."""
+    """Deaktiviert/entfernt Extensions. Ohne EXT interaktiv."""
+    # Click kann zwei optionale Positionals nicht selbst nach Typ unterscheiden;
+    # ein einzelnes Argument das wie eine PHP-Version aussieht ist version_spec.
+    if ext_name and not version_spec and re.fullmatch(r"\d+\.?\d*\.?\d*", ext_name):
+        version_spec = ext_name
+        ext_name = None
+
+    if ext_name:
+        prefix: Path = ctx.obj["prefix"]
+        family = _resolve_family(prefix, version_spec)
+        ini = confd_dir(prefix, family) / f"{ext_name}.ini"
+        if not ini.exists():
+            click.echo(f"{ext_name}.ini nicht gefunden für PHP {family}.", err=True)
+            raise SystemExit(1)
+        disabled = ini.with_suffix(".ini.disabled")
+        ini.rename(disabled)
+        if ext_name.lower() == "xdebug":
+            php_version = _resolve_active_version(prefix, family)
+            write_phpd_wrapper(prefix, php_version)
+        click.echo(f"✓ {ext_name} deaktiviert (INI: {disabled})")
+        return
+
+    _remove_ext_interactive(ctx, version_spec)
+
+
+def _remove_ext_interactive(ctx, version_spec):
+    """Interaktiver Modus für ext remove: Extensions per Auswahl entfernen."""
+    if not _is_tty():
+        click.echo("Interaktiver Modus benoetigt ein TTY.", err=True)
+        raise SystemExit(2)
+
     prefix: Path = ctx.obj["prefix"]
     family = _resolve_family(prefix, version_spec)
-    ini = prefix / "etc" / "conf.d" / family / f"{ext_name}.ini"
-    if not ini.exists():
-        click.echo(f"{ext_name}.ini nicht gefunden für PHP {family}.", err=True)
-        raise SystemExit(1)
-    disabled = ini.with_suffix(".ini.disabled")
-    ini.rename(disabled)
-    if ext_name.lower() == "xdebug":
-        php_version = _resolve_active_version(prefix, family)
-        write_phpd_wrapper(prefix, php_version)
-    click.echo(f"✓ {ext_name} deaktiviert (INI: {disabled})")
+    php_version = _resolve_active_version(prefix, family)
+    php_bin = version_bin(prefix, php_version, "php")
+
+    confd = confd_dir(prefix, family)
+    confd_files = list(confd.iterdir()) if confd.exists() else []
+    active_inis = sorted(
+        f.stem for f in confd_files
+        if f.suffix == ".ini" and f.stem != "00-base"
+    )
+    disabled_inis = sorted(
+        f.name.removesuffix(".ini.disabled")
+        for f in confd_files
+        if f.name.endswith(".ini.disabled")
+    )
+
+    cfg_path = configs_dir(prefix)
+    active_cfg = load_config(cfg_path, family)
+    active_variants = set(active_cfg.get("build", {}).get("variants", []))
+
+    loaded, _local, _standard = _query_extensions(php_bin)
+    loaded_lower = {n.lower() for n in loaded}
+    compiled_variants = sorted(
+        v for v in active_variants
+        if v in VARIANT_EXTENSIONS and v.lower() in loaded_lower
+    )
+
+    groups = {
+        "Aktive pbrew-INI":     active_inis,
+        "Inaktive pbrew-INI":   disabled_inis,
+        "Kompiliert (Rebuild)": compiled_variants,
+    }
+    picked = _prompt_multiselect(
+        f"Extensions fuer PHP {family} entfernen:", groups,
+    )
+    if not picked:
+        click.echo("Nichts ausgewaehlt – abgebrochen.")
+        return
+
+    summary: list[str] = []
+
+    for name in picked.get("Aktive pbrew-INI", []):
+        ini = confd / f"{name}.ini"
+        try:
+            ini.rename(ini.with_suffix(".ini.disabled"))
+            summary.append(f"  [deaktiviert] {name}")
+        except FileNotFoundError:
+            click.echo(f"  Warnung: {name}.ini nicht gefunden – uebersprungen.")
+
+    for name in picked.get("Inaktive pbrew-INI", []):
+        ini = confd / f"{name}.ini.disabled"
+        try:
+            ini.unlink()
+            summary.append(f"  [geloescht]   {name}")
+        except FileNotFoundError:
+            click.echo(f"  Warnung: {name}.ini.disabled nicht gefunden – uebersprungen.")
+
+    rebuild_picks = picked.get("Kompiliert (Rebuild)", [])
+    if rebuild_picks:
+        target = _prompt_config_choice(cfg_path, family)
+        if target is None or not target.exists():
+            click.echo("Config-Auswahl abgebrochen oder nicht gefunden.")
+        else:
+            removed = _remove_config_variants(target, rebuild_picks)
+            if removed:
+                summary.append(
+                    f"  [rebuild]     {', '.join(removed)} "
+                    f"entfernt aus {target.name}"
+                )
+                click.echo(
+                    f"\nHinweis: PHP {family} neu bauen, damit die Aenderung "
+                    f"wirksam wird:\n  pbrew install {family} --config "
+                    f"{target.stem}"
+                )
+
+    click.echo("\nZusammenfassung:")
+    for line in summary:
+        click.echo(line)
+
+
+def _is_tty() -> bool:
+    """Prueft ob stdin ein TTY ist (separat fuer Tests mockbar)."""
+    return sys.stdin.isatty()
+
+
+@ext_cmd.command("add")
+@click.argument("version_spec", required=False, metavar="[PHP-VERSION]")
+@click.pass_context
+def add_ext_cmd(ctx, version_spec):
+    """Interaktiv Extensions hinzufuegen (lokal aktivieren, PECL, Rebuild)."""
+    if not _is_tty():
+        click.echo("Interaktiver Modus benoetigt ein TTY.", err=True)
+        raise SystemExit(2)
+
+    prefix: Path = ctx.obj["prefix"]
+    family = _resolve_family(prefix, version_spec)
+    php_version = _resolve_active_version(prefix, family)
+    php_bin = version_bin(prefix, php_version, "php")
+
+    cfg_path = configs_dir(prefix)
+    active_cfg = load_config(cfg_path, family)
+    active_variants = set(active_cfg.get("build", {}).get("variants", []))
+
+    confd = confd_dir(prefix, family)
+    pbrew_active = {
+        ini.stem.lower()
+        for ini in (confd.glob("*.ini") if confd.exists() else [])
+        if ini.stem != "00-base"
+    }
+
+    loaded, local, standard = _query_extensions(php_bin)
+    local_c, pecl_c, rebuild_c = _collect_add_candidates(
+        loaded=loaded, local=local, standard=standard,
+        pbrew_active=pbrew_active, active_variants=active_variants,
+    )
+
+    groups = {
+        "Lokale .so": local_c,
+        "PECL": pecl_c,
+        "Standard (Rebuild)": rebuild_c,
+    }
+    picked = _prompt_multiselect(
+        f"Extensions fuer PHP {family} hinzufuegen:", groups,
+    )
+    if not picked:
+        click.echo("Nichts ausgewaehlt – abgebrochen.")
+        return
+
+    summary: list[str] = []
+
+    for name in picked.get("Lokale .so", []):
+        is_zend = name.lower() in _ZEND_EXTENSIONS
+        is_debug = name.lower() in _DEBUG_EXTENSIONS
+        write_ext_ini(prefix, family, name, is_zend=is_zend, debug=is_debug)
+        summary.append(f"  [aktiviert]  {name}")
+
+    for name in picked.get("PECL", []):
+        try:
+            _install_pecl_extension(ctx, name, family)
+            summary.append(f"  [installiert] {name}")
+        except SystemExit:
+            summary.append(f"  [FEHLER]     {name}")
+
+    rebuild_picks = picked.get("Standard (Rebuild)", [])
+    if rebuild_picks:
+        target = _prompt_config_choice(cfg_path, family)
+        if target is None:
+            click.echo("Config-Auswahl abgebrochen – Rebuild-Gruppe uebersprungen.")
+        else:
+            _update_config_variants(target, rebuild_picks)
+            summary.append(
+                f"  [rebuild]    {', '.join(rebuild_picks)} → {target.name}"
+            )
+            click.echo(
+                f"\nHinweis: PHP {family} neu bauen, damit die Variants "
+                f"wirksam werden:\n  pbrew install {family} --config "
+                f"{target.stem}"
+            )
+
+    click.echo("\nZusammenfassung:")
+    for line in summary:
+        click.echo(line)
+
+
+def _install_pecl_extension(ctx, ext_name: str, family: str) -> None:
+    """Wrapper um den bestehenden ext install-Flow fuer programmatische Aufrufe."""
+    ctx.invoke(install_ext_cmd, ext_name=ext_name, version_spec=family,
+               ext_version=None, jobs=None)
 
 
 @ext_cmd.command("enable")
@@ -152,7 +353,7 @@ def enable_ext_cmd(ctx, ext_name, version_spec):
     """Aktiviert eine deaktivierte Extension."""
     prefix: Path = ctx.obj["prefix"]
     family = _resolve_family(prefix, version_spec)
-    confd = prefix / "etc" / "conf.d" / family
+    confd = confd_dir(prefix, family)
     disabled = confd / f"{ext_name}.ini.disabled"
     ini = confd / f"{ext_name}.ini"
     if not disabled.exists():
@@ -174,7 +375,7 @@ def disable_ext_cmd(ctx, ext_name, version_spec):
     """Deaktiviert eine Extension (Alias für remove ohne State-Änderung)."""
     prefix: Path = ctx.obj["prefix"]
     family = _resolve_family(prefix, version_spec)
-    ini = prefix / "etc" / "conf.d" / family / f"{ext_name}.ini"
+    ini = confd_dir(prefix, family) / f"{ext_name}.ini"
     if not ini.exists():
         click.echo(f"{ext_name} ist bereits deaktiviert oder nicht installiert.")
         return
@@ -189,7 +390,7 @@ def installed_ext_cmd(ctx, version_spec):
     """Zeigt nur pbrew-verwaltete Extensions (aktiv und inaktiv)."""
     prefix: Path = ctx.obj["prefix"]
     family = _resolve_family(prefix, version_spec)
-    confd = prefix / "etc" / "conf.d" / family
+    confd = confd_dir(prefix, family)
     if not confd.exists():
         click.echo(f"Kein scan-dir für PHP {family} gefunden.")
         return
@@ -217,7 +418,7 @@ def list_ext_cmd(ctx, version_spec):
         click.echo(f"PHP-Binary nicht gefunden: {php_bin}", err=True)
         raise SystemExit(1)
 
-    confd = prefix / "etc" / "conf.d" / family
+    confd = confd_dir(prefix, family)
     pbrew_active: set[str] = set()
     pbrew_disabled: set[str] = set()
     if confd.exists():
@@ -310,6 +511,118 @@ def _query_extensions(
     )
 
     return loaded, local, standard
+
+
+def _collect_add_candidates(
+    *,
+    loaded: dict[str, tuple[str, str]],
+    local: list[str],
+    standard: list[str],
+    pbrew_active: set[str],
+    active_variants: set[str],
+) -> tuple[list[str], list[str], list[str]]:
+    local_candidates = [n for n in local if n.lower() not in pbrew_active]
+
+    known = {n.lower() for n in loaded}
+    known |= {n.lower() for n in local}
+    known |= {n.lower() for n in standard}
+    pecl_candidates = sorted(
+        n for n in _PECL_SUGGESTIONS if n.lower() not in known
+    )
+
+    rebuild_candidates = sorted(
+        n for n in standard
+        if n in VARIANT_EXTENSIONS and n not in active_variants
+    )
+    return local_candidates, pecl_candidates, rebuild_candidates
+
+
+def _update_config_variants(config_path: Path, variants: list[str]) -> list[str]:
+    """Fügt Variants additiv in eine Config-Datei ein. Erzeugt die Datei wenn nötig."""
+    if config_path.exists():
+        doc = tomlkit.loads(config_path.read_text())
+    else:
+        doc = tomlkit.document()
+    build = doc.setdefault("build", tomlkit.table())
+    current = list(build.get("variants", ["default"]))
+    added: list[str] = []
+    for v in variants:
+        if v not in current:
+            current.append(v)
+            added.append(v)
+    build["variants"] = current
+    config_path.write_text(tomlkit.dumps(doc))
+    return added
+
+
+def _remove_config_variants(config_path: Path, variants: list[str]) -> list[str]:
+    """Entfernt Variants aus einer Config-Datei. Datei muss existieren."""
+    doc = tomlkit.loads(config_path.read_text())
+    build = doc.get("build")
+    if build is None or "variants" not in build:
+        return []
+    current = list(build["variants"])
+    removed: list[str] = []
+    for v in variants:
+        if v in current:
+            current.remove(v)
+            removed.append(v)
+    build["variants"] = current
+    config_path.write_text(tomlkit.dumps(doc))
+    return removed
+
+
+def _prompt_config_choice(configs_dir: Path, active_family: str) -> "Path | None":
+    """Fragt nach der Ziel-Config. Gibt None bei Abbruch zurück."""
+    existing = sorted(p.name for p in configs_dir.glob("*.toml"))
+    choices = existing + ["<neu>"]
+    label = (
+        f"In welche Config sollen die Variants fuer PHP {active_family} "
+        f"eingetragen werden?"
+    )
+    pick = questionary.select(label, choices=choices).ask()
+    if pick is None:
+        return None
+    if pick == "<neu>":
+        name = questionary.text(
+            "Name der neuen Config (a-z, 0-9, _ und -):"
+        ).ask()
+        if not name:
+            return None
+        if not re.fullmatch(r"[a-zA-Z0-9_\-]+", name):
+            click.echo(f"Ungueltiger Name: {name!r}", err=True)
+            return None
+        return configs_dir / f"{name}.toml"
+    return configs_dir / pick
+
+
+def _prompt_multiselect(
+    title: str, groups: dict[str, list[str]]
+) -> dict[str, list[str]]:
+    """Zeigt eine questionary.checkbox mit Gruppen-Separatoren.
+
+    Leere Gruppen werden mit Hinweis-Zeile dargestellt, aber nicht auswählbar.
+    Rückgabe: {Gruppenname: [gewählte Items]} – leere Gruppen nicht enthalten.
+    """
+    from questionary import Choice, Separator
+
+    choices: list = []
+    for group_name, items in groups.items():
+        choices.append(Separator(f"── {group_name} ──"))
+        if not items:
+            choices.append(Choice(title="  (keine)", disabled="leer"))
+            continue
+        for item in items:
+            choices.append(Choice(title=item, value=f"{group_name}::{item}"))
+
+    picked = questionary.checkbox(title, choices=choices).ask()
+    if not picked:
+        return {}
+    result: dict[str, list[str]] = {}
+    for key in picked:
+        group, _, item = key.partition("::")
+        result.setdefault(group, []).append(item)
+    return result
 
 
 def _resolve_family(prefix: Path, version_spec: "str | None") -> str:
