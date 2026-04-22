@@ -415,6 +415,141 @@ def test_new_patches_no_effect_for_php80(tmp_path):
     assert not any("phar" in p for p in patches)
 
 
+# ── EVP_CIPHER_CTX Stack→Heap (Step 16) ──────────────────────────────────────
+
+def test_evp_cipher_ctx_stack_to_heap_for_php56(tmp_path):
+    f = _make_openssl56_c(
+        tmp_path,
+        "\tEVP_CIPHER_CTX ctx;\n"
+        "\tEVP_EncryptInit(&ctx, cipher, key, iv);\n"
+        "\tEVP_SealUpdate(&ctx, out, &outl, in, inl);\n"
+        "\tEVP_CIPHER_CTX_cleanup(&ctx);\n",
+    )
+    patches = _patch_openssl3_php56(tmp_path)
+    assert any("EVP_CIPHER_CTX" in p for p in patches)
+    content = f.read_text()
+    assert "EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new()" in content
+    assert "EVP_CIPHER_CTX ctx;" not in content
+    assert "EVP_CIPHER_CTX_cleanup" not in content
+    assert "EVP_CIPHER_CTX_reset(ctx)" in content
+    assert "EVP_EncryptInit(ctx," in content
+    assert "EVP_SealUpdate(ctx," in content
+
+
+def test_evp_cipher_ctx_named_cipher_ctx_for_php56(tmp_path):
+    f = _make_openssl56_c(
+        tmp_path,
+        "\tEVP_CIPHER_CTX cipher_ctx;\n"
+        "\tEVP_EncryptInit_ex(&cipher_ctx, cipher, NULL, key, iv);\n"
+        "\tEVP_DecryptUpdate(&cipher_ctx, out, &outl, in, inl);\n"
+        "\tEVP_CIPHER_CTX_cleanup(&cipher_ctx);\n",
+    )
+    _patch_openssl3_php56(tmp_path)
+    content = f.read_text()
+    assert "EVP_CIPHER_CTX *cipher_ctx = EVP_CIPHER_CTX_new()" in content
+    assert "EVP_EncryptInit_ex(cipher_ctx," in content
+    assert "EVP_DecryptUpdate(cipher_ctx," in content
+    assert "EVP_CIPHER_CTX_reset(cipher_ctx)" in content
+
+
+# ── pkey->pkey.* global replacement (Step 14) ────────────────────────────────
+
+def test_pkey_field_access_patch_for_php56(tmp_path):
+    f = _make_openssl56_c(
+        tmp_path,
+        "\tif (pkey->pkey.rsa) rsa_func(pkey->pkey.rsa);\n"
+        "\tif (pkey->pkey.dsa) dsa_func(pkey->pkey.dsa);\n"
+        "\tif (pkey->pkey.dh)  dh_func(pkey->pkey.dh);\n"
+        "\tif (pkey->pkey.ec)  ec_func(pkey->pkey.ec);\n",
+    )
+    _patch_openssl3_php56(tmp_path)
+    content = f.read_text()
+    assert "pkey->pkey.rsa" not in content
+    assert "pkey->pkey.dsa" not in content
+    assert "pkey->pkey.dh" not in content
+    assert "pkey->pkey.ec" not in content
+    assert "EVP_PKEY_get0_RSA(pkey)" in content
+    assert "EVP_PKEY_get0_DSA(pkey)" in content
+    assert "EVP_PKEY_get0_DH(pkey)" in content
+    assert "EVP_PKEY_get0_EC_KEY(pkey)" in content
+
+
+# ── pbrew_bn_to_zval Helper-Injektion (Step 1) ───────────────────────────────
+
+def test_bn_to_zval_helper_injected_for_php56(tmp_path):
+    f = _make_openssl56_c(tmp_path)
+    _patch_openssl3_php56(tmp_path)
+    content = f.read_text()
+    assert "static void pbrew_bn_to_zval" in content
+    assert "OPENSSL_VERSION_NUMBER >= 0x10100000L" in content
+    assert "BN_bn2bin" in content
+    assert "add_assoc_stringl" in content
+
+
+def test_bn_to_zval_helper_injected_once(tmp_path):
+    f = _make_openssl56_c(tmp_path)
+    _patch_openssl3_php56(tmp_path)
+    _patch_openssl3_php56(tmp_path)  # trifft Idempotenz-Guard
+    assert f.read_text().count("static void pbrew_bn_to_zval") == 1
+
+
+# ── pkey->type / EVP_PKEY_type(x->type) → EVP_PKEY_base_id (Step 3) ─────────
+
+def test_pkey_type_patch_for_php56(tmp_path):
+    f = _make_openssl56_c(
+        tmp_path,
+        "\tswitch (pkey->type) {\n"
+        "\t\tcase EVP_PKEY_RSA: break;\n"
+        "\t}\n"
+        "\tif (EVP_PKEY_type(pkey->type) == EVP_PKEY_RSA) {}\n"
+        "\tif (EVP_PKEY_type(key->type) == EVP_PKEY_DSA) {}\n",
+    )
+    _patch_openssl3_php56(tmp_path)
+    content = f.read_text()
+    assert "pkey->type" not in content
+    assert "key->type" not in content
+    assert "switch (EVP_PKEY_base_id(pkey))" in content
+    assert "EVP_PKEY_base_id(pkey)" in content
+    assert "EVP_PKEY_base_id(key)" in content
+
+
+# ── openssl_pkey_get_details RSA-Block (Step 11) ─────────────────────────────
+
+_PKEY_GET_DETAILS_RSA_OLD = (
+    "\t\t\tif (pkey->pkey.rsa != NULL) {\n"
+    "\t\t\t\tzval *rsa;\n\n"
+    "\t\t\t\tALLOC_INIT_ZVAL(rsa);\n"
+    "\t\t\t\tarray_init(rsa);\n"
+    "\t\t\t\tOPENSSL_PKEY_GET_BN(rsa, n);\n"
+    "\t\t\t\tOPENSSL_PKEY_GET_BN(rsa, e);\n"
+    "\t\t\t\tOPENSSL_PKEY_GET_BN(rsa, d);\n"
+    "\t\t\t\tOPENSSL_PKEY_GET_BN(rsa, p);\n"
+    "\t\t\t\tOPENSSL_PKEY_GET_BN(rsa, q);\n"
+    "\t\t\t\tOPENSSL_PKEY_GET_BN(rsa, dmp1);\n"
+    "\t\t\t\tOPENSSL_PKEY_GET_BN(rsa, dmq1);\n"
+    "\t\t\t\tOPENSSL_PKEY_GET_BN(rsa, iqmp);\n"
+    "\t\t\t\tadd_assoc_zval(return_value, \"rsa\", rsa);\n"
+    "\t\t\t}"
+)
+
+
+def test_pkey_get_details_rsa_patch_for_php56(tmp_path):
+    f = _make_openssl56_c(tmp_path, _PKEY_GET_DETAILS_RSA_OLD)
+    _patch_openssl3_php56(tmp_path)
+    content = f.read_text()
+    assert "pkey->pkey.rsa" not in content
+    assert "OPENSSL_PKEY_GET_BN" not in content
+    assert "EVP_PKEY_get0_RSA(pkey)" in content
+    assert "RSA_get0_key(" in content
+    assert "RSA_get0_factors(" in content
+    assert "RSA_get0_crt_params(" in content
+    assert 'pbrew_bn_to_zval(rsa, "n"' in content
+    assert 'pbrew_bn_to_zval(rsa, "iqmp"' in content
+    assert 'add_assoc_zval(return_value, "rsa", rsa)' in content
+
+
+# ── EVP_MD_CTX Sign-Aufrufe ohne Leerzeichen (Regression für #spacing-bug) ───
+
 def test_evp_md_ctx_sign_without_spaces_patch_for_php56(tmp_path):
     # PHP 5.6 hat EVP_SignInit(&md_ctx, ohne Leerzeichen vor (
     # Der alte Patch suchte nach "EVP_SignInit   (&md_ctx," (3 Spaces) → stiller No-op
