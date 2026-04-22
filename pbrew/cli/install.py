@@ -243,7 +243,8 @@ def _extract_errors_from_log(
 
 def _init_php_ini(prefix: Path, version: str, family: str) -> None:
     """Kopiert php.ini-production als Basis — nur wenn noch nicht vorhanden."""
-    src = version_dir(prefix, version) / "lib" / "php.ini-production"
+    # make install kopiert php.ini-production nicht ins Prefix – sie bleibt im Build-Tree
+    src = prefix / "build" / version / "php.ini-production"
     for dest_dir in (cli_ini_dir(prefix, family), fpm_ini_dir(prefix, family)):
         dest_dir.mkdir(parents=True, exist_ok=True)
         dest = dest_dir / "php.ini"
@@ -255,7 +256,7 @@ def _init_php_ini(prefix: Path, version: str, family: str) -> None:
     if not base_ini.exists():
         base_ini.write_text(
             "[Date]\ndate.timezone = Europe/Berlin\n\n"
-            "[opcache]\nopcache.enable = 1\nopcache.memory_consumption = 128\n"
+            "[opcache]\nzend_extension=opcache\nopcache.enable = 1\nopcache.memory_consumption = 128\n"
         )
 
 
