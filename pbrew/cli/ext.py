@@ -1,12 +1,16 @@
+import re
 import subprocess
+import sys
 from pathlib import Path
 
 import click
 import questionary
 import tomlkit
 
+from pbrew.core.config import load_config
+from pbrew.core.builder import VARIANT_EXTENSIONS
 from pbrew.core.paths import (
-    family_from_version, logs_dir, state_file, version_bin,
+    confd_dir, configs_dir, family_from_version, logs_dir, state_file, version_bin,
 )
 from pbrew.core.state import add_extension, get_family_state
 from pbrew.core.wrappers import write_phpd_wrapper
@@ -140,18 +144,16 @@ def install_ext_cmd(ctx, ext_name, version_spec, ext_version, jobs):
 @click.pass_context
 def remove_ext_cmd(ctx, ext_name, version_spec):
     """Deaktiviert/entfernt Extensions. Ohne EXT interaktiv."""
-    # Wenn nur ein Argument übergeben wurde und es wie eine PHP-Version
-    # aussieht (z.B. "8.4", "84", "8.3.1"), wird interaktiver Modus
-    # gestartet und das Argument als version_spec interpretiert.
-    import re as _re
-    if ext_name and not version_spec and _re.fullmatch(r"\d+\.?\d*\.?\d*", ext_name):
+    # Click kann zwei optionale Positionals nicht selbst nach Typ unterscheiden;
+    # ein einzelnes Argument das wie eine PHP-Version aussieht ist version_spec.
+    if ext_name and not version_spec and re.fullmatch(r"\d+\.?\d*\.?\d*", ext_name):
         version_spec = ext_name
         ext_name = None
 
     if ext_name:
         prefix: Path = ctx.obj["prefix"]
         family = _resolve_family(prefix, version_spec)
-        ini = prefix / "etc" / "conf.d" / family / f"{ext_name}.ini"
+        ini = confd_dir(prefix, family) / f"{ext_name}.ini"
         if not ini.exists():
             click.echo(f"{ext_name}.ini nicht gefunden für PHP {family}.", err=True)
             raise SystemExit(1)
@@ -177,20 +179,19 @@ def _remove_ext_interactive(ctx, version_spec):
     php_version = _resolve_active_version(prefix, family)
     php_bin = version_bin(prefix, php_version, "php")
 
-    confd = prefix / "etc" / "conf.d" / family
+    confd = confd_dir(prefix, family)
+    confd_files = list(confd.iterdir()) if confd.exists() else []
     active_inis = sorted(
-        ini.stem for ini in (confd.glob("*.ini") if confd.exists() else [])
-        if ini.stem != "00-base"
+        f.stem for f in confd_files
+        if f.suffix == ".ini" and f.stem != "00-base"
     )
     disabled_inis = sorted(
-        ini.name.removesuffix(".ini.disabled")
-        for ini in (confd.glob("*.ini.disabled") if confd.exists() else [])
+        f.name.removesuffix(".ini.disabled")
+        for f in confd_files
+        if f.name.endswith(".ini.disabled")
     )
 
-    from pbrew.core.builder import VARIANT_EXTENSIONS
-    from pbrew.core.paths import configs_dir as _cfg_dir
-    from pbrew.core.config import load_config
-    cfg_path = _cfg_dir(prefix)
+    cfg_path = configs_dir(prefix)
     active_cfg = load_config(cfg_path, family)
     active_variants = set(active_cfg.get("build", {}).get("variants", []))
 
@@ -217,15 +218,19 @@ def _remove_ext_interactive(ctx, version_spec):
 
     for name in picked.get("Aktive pbrew-INI", []):
         ini = confd / f"{name}.ini"
-        if ini.exists():
+        try:
             ini.rename(ini.with_suffix(".ini.disabled"))
             summary.append(f"  [deaktiviert] {name}")
+        except FileNotFoundError:
+            click.echo(f"  Warnung: {name}.ini nicht gefunden – uebersprungen.")
 
     for name in picked.get("Inaktive pbrew-INI", []):
         ini = confd / f"{name}.ini.disabled"
-        if ini.exists():
+        try:
             ini.unlink()
             summary.append(f"  [geloescht]   {name}")
+        except FileNotFoundError:
+            click.echo(f"  Warnung: {name}.ini.disabled nicht gefunden – uebersprungen.")
 
     rebuild_picks = picked.get("Kompiliert (Rebuild)", [])
     if rebuild_picks:
@@ -252,7 +257,6 @@ def _remove_ext_interactive(ctx, version_spec):
 
 def _is_tty() -> bool:
     """Prueft ob stdin ein TTY ist (separat fuer Tests mockbar)."""
-    import sys
     return sys.stdin.isatty()
 
 
@@ -270,13 +274,11 @@ def add_ext_cmd(ctx, version_spec):
     php_version = _resolve_active_version(prefix, family)
     php_bin = version_bin(prefix, php_version, "php")
 
-    from pbrew.core.paths import configs_dir as _cfg_dir
-    from pbrew.core.config import load_config
-    cfg_path = _cfg_dir(prefix)
+    cfg_path = configs_dir(prefix)
     active_cfg = load_config(cfg_path, family)
     active_variants = set(active_cfg.get("build", {}).get("variants", []))
 
-    confd = prefix / "etc" / "conf.d" / family
+    confd = confd_dir(prefix, family)
     pbrew_active = {
         ini.stem.lower()
         for ini in (confd.glob("*.ini") if confd.exists() else [])
@@ -351,7 +353,7 @@ def enable_ext_cmd(ctx, ext_name, version_spec):
     """Aktiviert eine deaktivierte Extension."""
     prefix: Path = ctx.obj["prefix"]
     family = _resolve_family(prefix, version_spec)
-    confd = prefix / "etc" / "conf.d" / family
+    confd = confd_dir(prefix, family)
     disabled = confd / f"{ext_name}.ini.disabled"
     ini = confd / f"{ext_name}.ini"
     if not disabled.exists():
@@ -373,7 +375,7 @@ def disable_ext_cmd(ctx, ext_name, version_spec):
     """Deaktiviert eine Extension (Alias für remove ohne State-Änderung)."""
     prefix: Path = ctx.obj["prefix"]
     family = _resolve_family(prefix, version_spec)
-    ini = prefix / "etc" / "conf.d" / family / f"{ext_name}.ini"
+    ini = confd_dir(prefix, family) / f"{ext_name}.ini"
     if not ini.exists():
         click.echo(f"{ext_name} ist bereits deaktiviert oder nicht installiert.")
         return
@@ -388,7 +390,7 @@ def installed_ext_cmd(ctx, version_spec):
     """Zeigt nur pbrew-verwaltete Extensions (aktiv und inaktiv)."""
     prefix: Path = ctx.obj["prefix"]
     family = _resolve_family(prefix, version_spec)
-    confd = prefix / "etc" / "conf.d" / family
+    confd = confd_dir(prefix, family)
     if not confd.exists():
         click.echo(f"Kein scan-dir für PHP {family} gefunden.")
         return
@@ -416,7 +418,7 @@ def list_ext_cmd(ctx, version_spec):
         click.echo(f"PHP-Binary nicht gefunden: {php_bin}", err=True)
         raise SystemExit(1)
 
-    confd = prefix / "etc" / "conf.d" / family
+    confd = confd_dir(prefix, family)
     pbrew_active: set[str] = set()
     pbrew_disabled: set[str] = set()
     if confd.exists():
@@ -519,8 +521,6 @@ def _collect_add_candidates(
     pbrew_active: set[str],
     active_variants: set[str],
 ) -> tuple[list[str], list[str], list[str]]:
-    from pbrew.core.builder import VARIANT_EXTENSIONS
-
     local_candidates = [n for n in local if n.lower() not in pbrew_active]
 
     known = {n.lower() for n in loaded}
@@ -589,7 +589,6 @@ def _prompt_config_choice(configs_dir: Path, active_family: str) -> "Path | None
         ).ask()
         if not name:
             return None
-        import re
         if not re.fullmatch(r"[a-zA-Z0-9_\-]+", name):
             click.echo(f"Ungueltiger Name: {name!r}", err=True)
             return None
