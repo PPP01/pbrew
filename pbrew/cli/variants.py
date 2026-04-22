@@ -1,11 +1,14 @@
 import click
 
-from pbrew.core.builder import VARIANT_FLAGS, VARIANT_SAAPIS, VARIANT_BUILD_OPTIONS, VARIANT_EXTENSIONS
+from pbrew.core.builder import (
+    VARIANT_FLAGS, VARIANT_SAAPIS, VARIANT_BUILD_OPTIONS,
+    VARIANT_EXTENSIONS, VARIANT_META,
+)
 
 
 @click.command("variants")
 def variants_cmd():
-    """Zeigt alle verfügbaren Build-Variants und Build-Optionen."""
+    """Zeigt alle verfügbaren Build-Variants, Build-Optionen und Meta-Aliases."""
     extensions = sorted(VARIANT_EXTENSIONS)
     build_options = sorted(VARIANT_BUILD_OPTIONS)
     saapis = sorted(VARIANT_SAAPIS)
@@ -13,14 +16,23 @@ def variants_cmd():
     click.echo("Extensions  (erscheinen in `php -m` nach dem Build):")
     _print_wrapped(extensions)
     click.echo()
-    click.echo("Build-Optionen  (kein Eintrag in `php -m`, nur Konstanten/Funktionen):")
+    click.echo("Build-Optionen  (kein Eintrag in `php -m`, nur Konstanten/Flags):")
     _print_wrapped(build_options)
     click.echo()
     click.echo("SAPIs:")
     _print_wrapped(saapis)
     click.echo()
+    click.echo("Meta-Variants  (phpbrew-kompatible Aliases, werden expandiert):")
+    for name, members in sorted(VARIANT_META.items()):
+        if name in ("all", "everything"):
+            click.echo(f"  {name}: (alle aktivierbaren Variants)")
+        elif members:
+            click.echo(f"  {name}: {', '.join(members)}")
+        else:
+            click.echo(f"  {name}: (leer)")
+    click.echo()
     click.echo("Verwendung in der Config (z.B. configs/8.4/standard.toml):")
-    click.echo('  variants = ["default", "intl", "gd", "argon2"]')
+    click.echo('  variants = ["default", "ipc", "dbs", "argon2"]')
     click.echo()
     click.echo("Oder interaktiv:  pbrew ext add")
 

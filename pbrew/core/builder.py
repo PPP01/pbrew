@@ -10,16 +10,18 @@ from pbrew.core.paths import version_dir, cli_ini_dir, confd_dir
 # (z.B. mysql → mysqli + pdo-mysql mit mysqlnd-Treiber), manche hängen von
 # externen Libs ab und müssen --with- statt --enable- nutzen.
 _VARIANT_FLAGS: dict[str, list[str]] = {
-    # Built-in / SAPI
+    # SAPIs
     "cli":          ["--enable-cli"],
     "fpm":          ["--enable-fpm"],
-    "fpm-systemd":  ["--enable-fpm", "--with-fpm-systemd"],  # braucht libsystemd-dev
-    # Core-Extensions (--enable-, eingebaut)
+    "fpm-systemd":  ["--enable-fpm", "--with-fpm-systemd"],
+    "cgi":          ["--enable-cgi"],
+    "phpdbg":       ["--enable-phpdbg"],
+    # Core-Extensions (--enable-)
     "opcache":      ["--enable-opcache"],
     "exif":         ["--enable-exif"],
-    "intl":         ["--enable-intl"],          # braucht libicu-dev
+    "intl":         ["--enable-intl"],
     "ftp":          ["--enable-ftp"],
-    "soap":         ["--enable-soap"],          # braucht libxml2-dev
+    "soap":         ["--enable-soap"],
     "mbstring":     ["--enable-mbstring"],
     "bcmath":       ["--enable-bcmath"],
     "sockets":      ["--enable-sockets"],
@@ -41,6 +43,7 @@ _VARIANT_FLAGS: dict[str, list[str]] = {
     "bz2":          ["--with-bz2"],
     "zlib":         ["--with-zlib"],
     "readline":     ["--with-readline"],
+    "imap":         ["--with-imap", "--with-imap-ssl"],
     # Spezielle 1:N-Mappings
     "mysql":        ["--enable-mysqli", "--with-mysqli=mysqlnd", "--with-pdo-mysql=mysqlnd"],
     "sqlite":       ["--with-sqlite3", "--with-pdo-sqlite"],
@@ -49,7 +52,6 @@ _VARIANT_FLAGS: dict[str, list[str]] = {
     "gd":           ["--enable-gd", "--with-jpeg", "--with-freetype", "--with-webp"],
     "ldap":         ["--with-ldap"],
     "sodium":       ["--with-sodium"],
-    "argon2":       ["--with-password-argon2"],
     "xsl":          ["--with-xsl"],
     "ffi":          ["--with-ffi"],
     "enchant":      ["--with-enchant"],
@@ -58,23 +60,53 @@ _VARIANT_FLAGS: dict[str, list[str]] = {
     "pdo_dblib":    ["--with-pdo-dblib"],
     "pdo_firebird": ["--with-pdo-firebird"],
     "pdo_odbc":     ["--with-pdo-odbc=unixODBC,/usr"],
+    # Build-Zeit-Features (kein php -m Eintrag)
+    "argon2":       ["--with-password-argon2"],
+    "zts":          ["--enable-zts"],
 }
 
 # Öffentliche Aliase für externe Consumer (CLI-Kommandos wie `ext add`).
 VARIANT_FLAGS: dict[str, list[str]] = _VARIANT_FLAGS
 
-VARIANT_SAAPIS: frozenset[str] = frozenset({"cli", "fpm", "fpm-systemd"})
+VARIANT_SAAPIS: frozenset[str] = frozenset({"cli", "fpm", "fpm-systemd", "cgi", "phpdbg"})
 _SAPI_VARIANTS = VARIANT_SAAPIS  # interner Alias, Abwärtskompatibilität
 
-# Reine Build-Zeit-Features: aktivieren Konstanten/Funktionen, erscheinen
-# aber nicht als eigener Eintrag in `php -m`.
-VARIANT_BUILD_OPTIONS: frozenset[str] = frozenset({"argon2"})
+# Reine Build-Zeit-Features: aktivieren Konstanten/Funktionen oder Build-Modi,
+# erscheinen nicht als eigener Eintrag in `php -m`.
+VARIANT_BUILD_OPTIONS: frozenset[str] = frozenset({"argon2", "zts"})
 
 # Echte Extensions: tauchen nach dem Build in `php -m` auf.
 VARIANT_EXTENSIONS: frozenset[str] = frozenset(
     name for name in _VARIANT_FLAGS
     if name not in VARIANT_SAAPIS and name not in VARIANT_BUILD_OPTIONS
 )
+
+# phpbrew-kompatible Meta-Variants: werden vor dem Build auf echte Variants expandiert.
+# "default" und "cli" werden weiterhin als Platzhalter übersprungen.
+_ALL_ACTIVATABLE: list[str] = sorted(
+    v for v in _VARIANT_FLAGS if v not in {"cli"}
+)
+VARIANT_META: dict[str, list[str]] = {
+    "ipc":       ["shmop", "sysvmsg", "sysvsem", "sysvshm"],
+    "dbs":       ["sqlite", "mysql", "pgsql"],
+    "mb":        ["mbstring"],
+    "neutral":   [],
+    "small":     ["bz2", "cli", "curl", "mbstring", "openssl", "readline", "xml"],
+    "all":       _ALL_ACTIVATABLE,
+    "everything": _ALL_ACTIVATABLE,
+}
+
+
+def _expand_meta_variants(variants: list[str]) -> list[str]:
+    """Expandiert phpbrew-kompatible Meta-Variants (ipc, dbs, …) auf echte Variants."""
+    result: list[str] = []
+    seen: set[str] = set()
+    for v in variants:
+        for expanded in VARIANT_META.get(v, [v]):
+            if expanded not in seen:
+                result.append(expanded)
+                seen.add(expanded)
+    return result
 
 
 def build_configure_args(
@@ -107,7 +139,8 @@ def build_configure_args(
     ]
 
     seen: set[str] = set(args)
-    variants = config.get("build", {}).get("variants", [])
+    raw_variants = config.get("build", {}).get("variants", [])
+    variants = _expand_meta_variants(raw_variants)
     for variant in variants:
         if variant in ("default", "cli"):
             continue
