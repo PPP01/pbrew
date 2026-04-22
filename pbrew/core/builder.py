@@ -39,6 +39,15 @@ _VARIANT_FLAGS: dict[str, list[str]] = {
     "pgsql":        ["--with-pgsql", "--with-pdo-pgsql"],
 }
 
+# Öffentliche Aliase für externe Consumer (CLI-Kommandos wie `ext add`).
+VARIANT_FLAGS: dict[str, list[str]] = _VARIANT_FLAGS
+
+# Teilmenge der Variants, die echte Extensions darstellen (keine SAPI-Einträge).
+_SAPI_VARIANTS = frozenset({"cli", "fpm", "fpm-systemd"})
+VARIANT_EXTENSIONS: frozenset[str] = frozenset(
+    name for name in _VARIANT_FLAGS if name not in _SAPI_VARIANTS
+)
+
 
 def build_configure_args(
     prefix: Path,
