@@ -17,7 +17,7 @@ from pbrew.cli.info import info_cmd
 from pbrew.cli.env import env_cmd
 from pbrew.cli.outdated import outdated_cmd
 from pbrew.cli.fpm import fpm_cmd
-from pbrew.cli.ext import ext_cmd
+from pbrew.cli.ext import ext_cmd, extension_cmd
 from pbrew.cli.upgrade import upgrade_cmd, rollback_cmd
 from pbrew.cli.config_ import config_cmd
 from pbrew.cli.test_ import test_cmd
@@ -81,6 +81,7 @@ main.add_command(env_cmd, name="env")
 main.add_command(outdated_cmd, name="outdated")
 main.add_command(fpm_cmd, name="fpm")
 main.add_command(ext_cmd, name="ext")
+main.add_command(extension_cmd, name="extension")
 main.add_command(upgrade_cmd, name="upgrade")
 main.add_command(rollback_cmd, name="rollback")
 main.add_command(config_cmd, name="config")

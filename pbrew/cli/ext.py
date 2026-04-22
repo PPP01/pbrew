@@ -1,9 +1,10 @@
+import subprocess
 from pathlib import Path
 
 import click
 
 from pbrew.core.paths import (
-    family_from_version, logs_dir, state_file,
+    family_from_version, logs_dir, state_file, version_bin,
 )
 from pbrew.core.state import add_extension, get_family_state
 from pbrew.core.wrappers import write_phpd_wrapper
@@ -200,6 +201,67 @@ def list_ext_cmd(ctx, version_spec):
         name = ini.name.removesuffix(".ini.disabled")
         click.echo(f"  [inaktiv]  {name}")
     click.echo()
+
+
+def _query_extensions(php_bin: Path) -> tuple[dict[str, tuple[str, str]], list[str]]:
+    """Fragt geladene und verfügbare Extensions per PHP-Binary ab.
+
+    Returns:
+        loaded:    {lowercase_name: (original_name, version_string)}
+        available: [name] – .so-Dateien im extension_dir, die nicht geladen sind
+    """
+    script = (
+        "foreach(get_loaded_extensions() as $e){"
+        "$v=phpversion($e);echo $e.'|'.($v?:'').PHP_EOL;}"
+    )
+    r = subprocess.run([str(php_bin), "-r", script], capture_output=True, text=True)
+    loaded: dict[str, tuple[str, str]] = {}
+    for line in r.stdout.splitlines():
+        if "|" in line:
+            name, version = line.split("|", 1)
+            loaded[name.lower()] = (name, version)
+
+    r2 = subprocess.run(
+        [str(php_bin), "-r", "echo ini_get('extension_dir');"],
+        capture_output=True, text=True,
+    )
+    ext_dir = Path(r2.stdout.strip())
+
+    available: list[str] = []
+    if ext_dir.is_dir():
+        for so in sorted(ext_dir.glob("*.so")):
+            if so.stem.lower() not in loaded:
+                available.append(so.stem)
+
+    return loaded, available
+
+
+@click.command("extension")
+@click.argument("version_spec", required=False)
+@click.pass_context
+def extension_cmd(ctx, version_spec):
+    """Zeigt geladene und verfügbare PHP-Extensions (wie phpbrew extension)."""
+    prefix: Path = ctx.obj["prefix"]
+    family = _resolve_family(prefix, version_spec)
+    php_version = _resolve_active_version(prefix, family)
+    php_bin = version_bin(prefix, php_version, "php")
+
+    if not php_bin.exists():
+        click.echo(f"PHP-Binary nicht gefunden: {php_bin}", err=True)
+        raise SystemExit(1)
+
+    loaded, available = _query_extensions(php_bin)
+
+    col_width = max((len(name) for _, (name, _) in loaded.items()), default=10) + 2
+
+    click.echo("Loaded extensions:")
+    for _, (name, version) in sorted(loaded.items()):
+        click.echo(f" [*] {name:<{col_width}} {version}")
+
+    if available:
+        click.echo("Available local extensions:")
+        for name in available:
+            click.echo(f" [ ] {name}")
 
 
 def _resolve_family(prefix: Path, version_spec: "str | None") -> str:
