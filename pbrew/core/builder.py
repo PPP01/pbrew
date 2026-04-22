@@ -37,6 +37,7 @@ _VARIANT_FLAGS: dict[str, list[str]] = {
     "mysql":        ["--enable-mysqli", "--with-mysqli=mysqlnd", "--with-pdo-mysql=mysqlnd"],
     "sqlite":       ["--with-sqlite3", "--with-pdo-sqlite"],
     "pgsql":        ["--with-pgsql", "--with-pdo-pgsql"],
+    "gmp":          ["--with-gmp"],
 }
 
 # Öffentliche Aliase für externe Consumer (CLI-Kommandos wie `ext add`).

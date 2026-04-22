@@ -33,6 +33,7 @@ LIB_CHECKS: dict[str, LibCheck] = {
     "libsystemd":   LibCheck(pkgconfig="libsystemd"),
     "zlib":         LibCheck(pkgconfig="zlib"),
     "oniguruma":    LibCheck(pkgconfig="oniguruma"),
+    "gmp":          LibCheck(headers=("/usr/include/gmp.h",)),
     # pkg-config + Header-Fallback (je nach Distro unzuverlässig)
     "tidy":         LibCheck(
         pkgconfig="tidy",
@@ -65,6 +66,7 @@ VARIANT_LIB: dict[str, str] = {
     "bz2":          "bz2",
     "readline":     "readline",
     "mbstring":     "oniguruma",
+    "gmp":          "gmp",
 }
 
 # PHP 8.x braucht das immer (unabhängig von Variants):
@@ -90,6 +92,7 @@ DISTRO_PACKAGES: dict[str, dict[str, str]] = {
     "bz2":          {"apt-get": "libbz2-dev",           "dnf": "bzip2-devel",       "brew": "bzip2"},
     "readline":     {"apt-get": "libreadline-dev",      "dnf": "readline-devel",    "brew": "readline"},
     "oniguruma":    {"apt-get": "libonig-dev",          "dnf": "oniguruma-devel",   "brew": "oniguruma"},
+    "gmp":          {"apt-get": "libgmp-dev",           "dnf": "gmp-devel",         "brew": "gmp"},
 }
 
 
