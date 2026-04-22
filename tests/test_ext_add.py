@@ -15,7 +15,7 @@ def test_collect_add_candidates_splits_three_buckets():
 
     loaded = {"json": ("json", "8.4"), "spl": ("spl", "8.4")}
     local = ["apcu", "redis"]
-    standard = ["intl", "mysql", "pdo_firebird"]
+    standard = ["intl", "mysql", "tokenizer"]
     pbrew_active = {"apcu"}  # apcu soll NICHT unter local_candidates landen
     active_variants = {"opcache"}
 
@@ -30,7 +30,7 @@ def test_collect_add_candidates_splits_three_buckets():
     # rebuild_c = standard ∩ VARIANT_EXTENSIONS minus active_variants
     assert "intl" in rebuild_c
     assert "mysql" in rebuild_c
-    assert "pdo_firebird" not in rebuild_c  # kein Variant-Mapping
+    assert "tokenizer" not in rebuild_c  # immer eingebaut, kein Variant-Mapping
 
 
 import tomlkit

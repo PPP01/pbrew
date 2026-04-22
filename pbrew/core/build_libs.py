@@ -34,6 +34,16 @@ LIB_CHECKS: dict[str, LibCheck] = {
     "zlib":         LibCheck(pkgconfig="zlib"),
     "oniguruma":    LibCheck(pkgconfig="oniguruma"),
     "gmp":          LibCheck(headers=("/usr/include/gmp.h",)),
+    "libgd":        LibCheck(pkgconfig="gdlib"),
+    "libldap":      LibCheck(headers=("/usr/include/ldap.h",)),
+    "libsodium":    LibCheck(pkgconfig="libsodium"),
+    "libxslt":      LibCheck(pkgconfig="libxslt"),
+    "libffi":       LibCheck(pkgconfig="libffi"),
+    "enchant-2":    LibCheck(pkgconfig="enchant-2"),
+    "libsnmp":      LibCheck(headers=("/usr/include/net-snmp/net-snmp-config.h",)),
+    "unixODBC":     LibCheck(headers=("/usr/include/sqlext.h",)),
+    "freetds":      LibCheck(headers=("/usr/include/sybdb.h",)),
+    "libfbclient":  LibCheck(headers=("/usr/include/ibase.h",)),
     # pkg-config + Header-Fallback (je nach Distro unzuverlässig)
     "tidy":         LibCheck(
         pkgconfig="tidy",
@@ -67,6 +77,17 @@ VARIANT_LIB: dict[str, str] = {
     "readline":     "readline",
     "mbstring":     "oniguruma",
     "gmp":          "gmp",
+    "gd":           "libgd",
+    "ldap":         "libldap",
+    "sodium":       "libsodium",
+    "xsl":          "libxslt",
+    "ffi":          "libffi",
+    "enchant":      "enchant-2",
+    "snmp":         "libsnmp",
+    "odbc":         "unixODBC",
+    "pdo_dblib":    "freetds",
+    "pdo_firebird": "libfbclient",
+    "pdo_odbc":     "unixODBC",
 }
 
 # PHP 8.x braucht das immer (unabhängig von Variants):
@@ -93,6 +114,16 @@ DISTRO_PACKAGES: dict[str, dict[str, str]] = {
     "readline":     {"apt-get": "libreadline-dev",      "dnf": "readline-devel",    "brew": "readline"},
     "oniguruma":    {"apt-get": "libonig-dev",          "dnf": "oniguruma-devel",   "brew": "oniguruma"},
     "gmp":          {"apt-get": "libgmp-dev",           "dnf": "gmp-devel",         "brew": "gmp"},
+    "libgd":        {"apt-get": "libgd-dev",            "dnf": "gd-devel",          "brew": "gd"},
+    "libldap":      {"apt-get": "libldap2-dev",         "dnf": "openldap-devel",    "brew": "openldap"},
+    "libsodium":    {"apt-get": "libsodium-dev",        "dnf": "libsodium-devel",   "brew": "libsodium"},
+    "libxslt":      {"apt-get": "libxslt1-dev",         "dnf": "libxslt-devel",     "brew": "libxslt"},
+    "libffi":       {"apt-get": "libffi-dev",           "dnf": "libffi-devel",      "brew": "libffi"},
+    "enchant-2":    {"apt-get": "libenchant-2-dev",     "dnf": "enchant2-devel",    "brew": "enchant"},
+    "libsnmp":      {"apt-get": "libsnmp-dev",          "dnf": "net-snmp-devel",    "brew": "net-snmp"},
+    "unixODBC":     {"apt-get": "unixodbc-dev",         "dnf": "unixODBC-devel",    "brew": "unixodbc"},
+    "freetds":      {"apt-get": "freetds-dev",          "dnf": "freetds-devel"},
+    "libfbclient":  {"apt-get": "firebird-dev",         "dnf": "firebird-devel"},
 }
 
 

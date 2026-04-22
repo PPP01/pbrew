@@ -23,6 +23,14 @@ _VARIANT_FLAGS: dict[str, list[str]] = {
     "mbstring":     ["--enable-mbstring"],
     "bcmath":       ["--enable-bcmath"],
     "sockets":      ["--enable-sockets"],
+    "calendar":     ["--enable-calendar"],
+    "dba":          ["--enable-dba"],
+    "pcntl":        ["--enable-pcntl"],
+    "shmop":        ["--enable-shmop"],
+    "sysvmsg":      ["--enable-sysvmsg"],
+    "sysvsem":      ["--enable-sysvsem"],
+    "sysvshm":      ["--enable-sysvshm"],
+    "xml":          ["--enable-xml"],
     # Extensions mit externer Lib (--with-)
     "openssl":      ["--with-openssl"],
     "iconv":        ["--with-iconv"],
@@ -38,6 +46,17 @@ _VARIANT_FLAGS: dict[str, list[str]] = {
     "sqlite":       ["--with-sqlite3", "--with-pdo-sqlite"],
     "pgsql":        ["--with-pgsql", "--with-pdo-pgsql"],
     "gmp":          ["--with-gmp"],
+    "gd":           ["--enable-gd", "--with-jpeg", "--with-freetype", "--with-webp"],
+    "ldap":         ["--with-ldap"],
+    "sodium":       ["--with-sodium"],
+    "xsl":          ["--with-xsl"],
+    "ffi":          ["--with-ffi"],
+    "enchant":      ["--with-enchant"],
+    "snmp":         ["--with-snmp"],
+    "odbc":         ["--with-unixODBC=/usr"],
+    "pdo_dblib":    ["--with-pdo-dblib"],
+    "pdo_firebird": ["--with-pdo-firebird"],
+    "pdo_odbc":     ["--with-pdo-odbc=unixODBC,/usr"],
 }
 
 # Öffentliche Aliase für externe Consumer (CLI-Kommandos wie `ext add`).
