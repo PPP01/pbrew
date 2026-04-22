@@ -49,6 +49,7 @@ _VARIANT_FLAGS: dict[str, list[str]] = {
     "gd":           ["--enable-gd", "--with-jpeg", "--with-freetype", "--with-webp"],
     "ldap":         ["--with-ldap"],
     "sodium":       ["--with-sodium"],
+    "argon2":       ["--with-password-argon2"],
     "xsl":          ["--with-xsl"],
     "ffi":          ["--with-ffi"],
     "enchant":      ["--with-enchant"],
