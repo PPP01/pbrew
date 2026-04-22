@@ -1,3 +1,5 @@
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -5,12 +7,11 @@ import click
 
 from pbrew.core.paths import (
     family_from_version,
-    global_state_file,
     state_file,
     version_bin,
     version_dir,
 )
-from pbrew.core.state import get_family_state, get_global_state
+from pbrew.core.state import get_family_state
 from pbrew.core.php_test_runner import CATEGORIES, TestResult, run_tests
 
 
@@ -42,16 +43,22 @@ def test_cmd(ctx, category, version_spec):
 
     categories = [category] if category else None
 
-    # Version auflösen
-    version = _resolve_version(prefix, version_spec)
-    if not version:
-        click.echo("Keine aktive PHP-Version gefunden. Zuerst: pbrew use <VERSION>", err=True)
-        raise SystemExit(1)
-
-    php_bin = version_bin(prefix, version, "php")
-    if not php_bin.exists():
-        click.echo(f"PHP-Binary nicht gefunden: {php_bin}", err=True)
-        raise SystemExit(1)
+    # Ohne Versionsangabe: das php aus dem PATH nehmen (respektiert pbrew use / Shell-Kontext)
+    if version_spec is None:
+        result = _find_shell_php()
+        if result is None:
+            click.echo("Kein php im PATH gefunden. Zuerst: pbrew use <VERSION>", err=True)
+            raise SystemExit(1)
+        php_bin, version = result
+    else:
+        version = _resolve_version(prefix, version_spec)
+        if not version:
+            click.echo(f"PHP {version_spec} ist nicht installiert.", err=True)
+            raise SystemExit(1)
+        php_bin = version_bin(prefix, version, "php")
+        if not php_bin.exists():
+            click.echo(f"PHP-Binary nicht gefunden: {php_bin}", err=True)
+            raise SystemExit(1)
 
     cat_label = f"  Kategorien:  {', '.join(categories)}" if categories else "  Kategorien:  alle"
     click.echo(f"\nPHP {version} — pbrew test")
@@ -74,33 +81,26 @@ def test_cmd(ctx, category, version_spec):
         raise SystemExit(1)
 
 
-def _resolve_version(prefix: Path, version_spec: str | None) -> str | None:
-    if version_spec:
-        family = family_from_version(version_spec)
-        state = get_family_state(state_file(prefix, family))
-        if version_spec.count(".") == 2:
-            vdir = version_dir(prefix, version_spec)
-            return version_spec if vdir.exists() else None
-        return state.get("active")
+def _find_shell_php() -> tuple[Path, str] | None:
+    """Gibt (php_bin, version) für das php zurück, das gerade im PATH aktiv ist."""
+    php = shutil.which("php")
+    if not php:
+        return None
+    try:
+        version = subprocess.check_output(
+            [php, "-r", "echo PHP_VERSION;"],
+            text=True, timeout=5,
+        ).strip()
+        return Path(php), version
+    except Exception:
+        return None
 
-    # Aktive Version aus dem globalen Default
-    global_state = get_global_state(global_state_file(prefix))
-    default_family = global_state.get("default_family")
-    if default_family:
-        state = get_family_state(state_file(prefix, default_family))
-        return state.get("active")
 
-    # Fallback: erste Family mit aktiver Version
-    from pbrew.core.paths import state_dir
-    sdir = state_dir(prefix)
-    if sdir.exists():
-        for f in sorted(sdir.iterdir()):
-            if f.suffix == ".json":
-                state = get_family_state(f)
-                active = state.get("active")
-                if active:
-                    return active
-    return None
+def _resolve_version(prefix: Path, version_spec: str) -> str | None:
+    family = family_from_version(version_spec)
+    if version_spec.count(".") == 2:
+        return version_spec if version_dir(prefix, version_spec).exists() else None
+    return get_family_state(state_file(prefix, family)).get("active")
 
 
 def _print_results(results: list[TestResult]) -> None:
