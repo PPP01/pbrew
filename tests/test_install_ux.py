@@ -124,6 +124,47 @@ def test_install_family_uses_fetch_latest(tmp_path):
     assert "Neueste Version" in result.output
 
 
+def test_install_skips_build_if_already_installed(tmp_path):
+    """Ohne --force wird ein vorhandenes version_dir nicht neu gebaut."""
+    version = "8.4.22"
+    prefix = tmp_path / "pbrew"
+    _prepare_prefix(prefix, version)
+    # Version-Dir schon vorhanden
+    (prefix / "versions" / version / "bin").mkdir(parents=True)
+    runner = CliRunner()
+    env = {"XDG_CONFIG_HOME": str(tmp_path / "config")}
+    with patch.dict(os.environ, env), \
+         patch("pbrew.cli.install.resolver.fetch_latest", return_value=_make_release(version)), \
+         patch("pbrew.cli.install.builder.run_configure") as mc:
+        result = runner.invoke(main, ["--prefix", str(prefix), "install", "8.4"])
+    assert result.exit_code == 0, result.output
+    assert "bereits installiert" in result.output
+    mc.assert_not_called()
+
+
+def test_install_force_rebuilds_existing_version(tmp_path):
+    """--force überschreibt ein vorhandenes version_dir und startet den Build neu."""
+    version = "8.4.22"
+    prefix = tmp_path / "pbrew"
+    _prepare_prefix(prefix, version)
+    # Version-Dir schon vorhanden
+    (prefix / "versions" / version / "bin").mkdir(parents=True)
+    runner = CliRunner()
+    env = {"XDG_CONFIG_HOME": str(tmp_path / "config")}
+    with patch.dict(os.environ, env), \
+         patch("pbrew.cli.install.resolver.fetch_latest", return_value=_make_release(version)), \
+         patch("pbrew.cli.install.build_libs.check_required_libs", return_value=[]), \
+         patch("pbrew.cli.install.builder.run_configure", return_value=None), \
+         patch("pbrew.cli.install.builder.run_make", return_value=None), \
+         patch("pbrew.cli.install.builder.run_make_install",
+               side_effect=lambda *a, **kw: _simulate_make_install(prefix, version)), \
+         patch("pbrew.cli.install.run_basic_checks", return_value=[]):
+        result = runner.invoke(main, ["--prefix", str(prefix), "install", "8.4", "--force"])
+    assert result.exit_code == 0, result.output
+    assert "Neubau" in result.output or "force" in result.output.lower()
+    assert "✓ PHP" in result.output
+
+
 def test_error_in_configure_reports_which_phase(tmp_path):
     prefix = tmp_path / "pbrew"
     _prepare_prefix(prefix)
