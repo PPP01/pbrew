@@ -182,25 +182,77 @@ def disable_ext_cmd(ctx, ext_name, version_spec):
     click.echo(f"✓ {ext_name} deaktiviert.")
 
 
-@ext_cmd.command("list")
+@ext_cmd.command("installed")
 @click.argument("version_spec", required=False)
 @click.pass_context
-def list_ext_cmd(ctx, version_spec):
-    """Listet installierte Extensions für eine PHP-Family."""
+def installed_ext_cmd(ctx, version_spec):
+    """Zeigt nur pbrew-verwaltete Extensions (aktiv und inaktiv)."""
     prefix: Path = ctx.obj["prefix"]
     family = _resolve_family(prefix, version_spec)
     confd = prefix / "etc" / "conf.d" / family
     if not confd.exists():
         click.echo(f"Kein scan-dir für PHP {family} gefunden.")
         return
-    click.echo(f"\nExtensions für PHP {family} ({confd}):")
+    click.echo(f"\nPbrew-Extensions für PHP {family}:")
     for ini in sorted(confd.glob("*.ini")):
-        click.echo(f"  [aktiv]    {ini.stem}")
+        if ini.stem != "00-base":
+            click.echo(f"  [aktiv]    {ini.stem}")
     for ini in sorted(confd.glob("*.ini.disabled")):
-        # stem gibt hier "{name}.ini" zurück – das .ini entfernen
         name = ini.name.removesuffix(".ini.disabled")
         click.echo(f"  [inaktiv]  {name}")
     click.echo()
+
+
+@ext_cmd.command("list")
+@click.argument("version_spec", required=False)
+@click.pass_context
+def list_ext_cmd(ctx, version_spec):
+    """Vollständige Extension-Übersicht: geladen, verfügbar und Standard."""
+    prefix: Path = ctx.obj["prefix"]
+    family = _resolve_family(prefix, version_spec)
+    php_version = _resolve_active_version(prefix, family)
+    php_bin = version_bin(prefix, php_version, "php")
+
+    if not php_bin.exists():
+        click.echo(f"PHP-Binary nicht gefunden: {php_bin}", err=True)
+        raise SystemExit(1)
+
+    confd = prefix / "etc" / "conf.d" / family
+    pbrew_active: set[str] = set()
+    pbrew_disabled: set[str] = set()
+    if confd.exists():
+        for ini in confd.glob("*.ini"):
+            if ini.stem != "00-base":
+                pbrew_active.add(ini.stem.lower())
+        for ini in confd.glob("*.ini.disabled"):
+            pbrew_disabled.add(ini.name.removesuffix(".ini.disabled").lower())
+
+    loaded, local, standard = _query_extensions(php_bin)
+
+    col_width = max((len(name) for _, (name, _) in loaded.items()), default=10) + 2
+
+    click.echo(f"\nExtensions für PHP {family}:\n")
+    click.echo("Loaded extensions:")
+    for _, (name, version) in sorted(loaded.items()):
+        marker = "  [pbrew]" if name.lower() in pbrew_active else ""
+        click.echo(f" [*] {name:<{col_width}} {version}{marker}")
+
+    if local or pbrew_disabled:
+        click.echo("Available local extensions:")
+        shown_lower: set[str] = set()
+        for name in local:
+            shown_lower.add(name.lower())
+            if name.lower() in pbrew_disabled:
+                click.echo(f" [-] {name:<{col_width}}  [pbrew, inaktiv]")
+            else:
+                click.echo(f" [ ] {name}")
+        for name in sorted(pbrew_disabled - shown_lower):
+            click.echo(f" [-] {name:<{col_width}}  [pbrew, inaktiv]")
+
+    if standard:
+        click.echo("Standard extensions (not compiled):")
+        for name in standard:
+            click.echo(f" [ ] {name}")
 
 
 # Vollständige Liste der Standard-PHP-Extensions (alle PHP-Versionen ≥ 7.4)
@@ -258,39 +310,6 @@ def _query_extensions(
     )
 
     return loaded, local, standard
-
-
-@click.command("extension")
-@click.argument("version_spec", required=False)
-@click.pass_context
-def extension_cmd(ctx, version_spec):
-    """Zeigt geladene und verfügbare PHP-Extensions (wie phpbrew extension)."""
-    prefix: Path = ctx.obj["prefix"]
-    family = _resolve_family(prefix, version_spec)
-    php_version = _resolve_active_version(prefix, family)
-    php_bin = version_bin(prefix, php_version, "php")
-
-    if not php_bin.exists():
-        click.echo(f"PHP-Binary nicht gefunden: {php_bin}", err=True)
-        raise SystemExit(1)
-
-    loaded, local, standard = _query_extensions(php_bin)
-
-    col_width = max((len(name) for _, (name, _) in loaded.items()), default=10) + 2
-
-    click.echo("Loaded extensions:")
-    for _, (name, version) in sorted(loaded.items()):
-        click.echo(f" [*] {name:<{col_width}} {version}")
-
-    if local:
-        click.echo("Available local extensions:")
-        for name in local:
-            click.echo(f" [ ] {name}")
-
-    if standard:
-        click.echo("Standard extensions (not compiled):")
-        for name in standard:
-            click.echo(f" [ ] {name}")
 
 
 def _resolve_family(prefix: Path, version_spec: "str | None") -> str:
