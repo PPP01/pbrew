@@ -203,18 +203,35 @@ def list_ext_cmd(ctx, version_spec):
     click.echo()
 
 
-def _query_extensions(php_bin: Path) -> tuple[dict[str, tuple[str, str]], list[str]]:
+# Vollständige Liste der Standard-PHP-Extensions (alle PHP-Versionen ≥ 7.4)
+_STANDARD_EXTENSIONS: frozenset[str] = frozenset({
+    "bcmath", "bz2", "calendar", "ctype", "curl", "date", "dba", "dom",
+    "enchant", "exif", "ffi", "fileinfo", "filter", "ftp", "gd", "gettext",
+    "gmp", "hash", "iconv", "intl", "json", "ldap", "libxml", "mbstring",
+    "mysqli", "mysqlnd", "odbc", "opcache", "openssl", "pcntl", "pcre",
+    "pdo", "pdo_dblib", "pdo_firebird", "pdo_mysql", "pdo_odbc", "pdo_pgsql",
+    "pdo_sqlite", "pgsql", "phar", "posix", "random", "readline", "reflection",
+    "session", "shmop", "simplexml", "snmp", "soap", "sockets", "sodium",
+    "spl", "sqlite3", "standard", "sysvmsg", "sysvsem", "sysvshm", "tidy",
+    "tokenizer", "xml", "xmlreader", "xmlwriter", "xsl", "zip", "zlib",
+})
+
+
+def _query_extensions(
+    php_bin: Path,
+) -> tuple[dict[str, tuple[str, str]], list[str], list[str]]:
     """Fragt geladene und verfügbare Extensions per PHP-Binary ab.
 
     Returns:
         loaded:    {lowercase_name: (original_name, version_string)}
-        available: [name] – .so-Dateien im extension_dir, die nicht geladen sind
+        local:     Namen von .so-Dateien im extension_dir, die nicht geladen sind
+        standard:  Standard-Extensions, die weder geladen noch als .so vorhanden sind
     """
     script = (
         "foreach(get_loaded_extensions() as $e){"
         "$v=phpversion($e);echo $e.'|'.($v?:'').PHP_EOL;}"
     )
-    r = subprocess.run([str(php_bin), "-r", script], capture_output=True, text=True)
+    r = subprocess.run([str(php_bin), "-r", script], capture_output=True, text=True, timeout=10)
     loaded: dict[str, tuple[str, str]] = {}
     for line in r.stdout.splitlines():
         if "|" in line:
@@ -223,17 +240,24 @@ def _query_extensions(php_bin: Path) -> tuple[dict[str, tuple[str, str]], list[s
 
     r2 = subprocess.run(
         [str(php_bin), "-r", "echo ini_get('extension_dir');"],
-        capture_output=True, text=True,
+        capture_output=True, text=True, timeout=10,
     )
     ext_dir = Path(r2.stdout.strip())
 
-    available: list[str] = []
+    local: list[str] = []
+    local_lower: set[str] = set()
     if ext_dir.is_dir():
         for so in sorted(ext_dir.glob("*.so")):
             if so.stem.lower() not in loaded:
-                available.append(so.stem)
+                local.append(so.stem)
+                local_lower.add(so.stem.lower())
 
-    return loaded, available
+    standard = sorted(
+        name for name in _STANDARD_EXTENSIONS
+        if name not in loaded and name not in local_lower
+    )
+
+    return loaded, local, standard
 
 
 @click.command("extension")
@@ -250,7 +274,7 @@ def extension_cmd(ctx, version_spec):
         click.echo(f"PHP-Binary nicht gefunden: {php_bin}", err=True)
         raise SystemExit(1)
 
-    loaded, available = _query_extensions(php_bin)
+    loaded, local, standard = _query_extensions(php_bin)
 
     col_width = max((len(name) for _, (name, _) in loaded.items()), default=10) + 2
 
@@ -258,9 +282,14 @@ def extension_cmd(ctx, version_spec):
     for _, (name, version) in sorted(loaded.items()):
         click.echo(f" [*] {name:<{col_width}} {version}")
 
-    if available:
+    if local:
         click.echo("Available local extensions:")
-        for name in available:
+        for name in local:
+            click.echo(f" [ ] {name}")
+
+    if standard:
+        click.echo("Standard extensions (not compiled):")
+        for name in standard:
             click.echo(f" [ ] {name}")
 
 
