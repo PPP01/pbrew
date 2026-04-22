@@ -569,12 +569,8 @@ def _patch_openssl3_php56(build_dir: Path) -> list[str]:
     content = content.replace("\tEVP_MD_CTX md_ctx;\n", "\tEVP_MD_CTX *md_ctx = EVP_MD_CTX_new();\n")
     content = content.replace("\tEVP_MD_CTX     md_ctx;\n", "\tEVP_MD_CTX *md_ctx = EVP_MD_CTX_new();\n")
     content = content.replace("EVP_MD_CTX_cleanup(&md_ctx)", "EVP_MD_CTX_free(md_ctx)")
-    for fn_call in [
-        "EVP_SignInit   (&md_ctx,",   "EVP_SignUpdate (&md_ctx,",  "EVP_SignFinal (&md_ctx,",
-        "EVP_VerifyInit   (&md_ctx,", "EVP_VerifyUpdate (&md_ctx,", "EVP_VerifyFinal (&md_ctx,",
-        "EVP_DigestInit(&md_ctx,",   "EVP_DigestUpdate(&md_ctx,", "EVP_DigestFinal (&md_ctx,",
-    ]:
-        content = content.replace(fn_call, fn_call.replace("(&md_ctx,", "(md_ctx,"))
+    # Ersetze alle &md_ctx-Aufrufe unabhängig von Leerzeichen (Regex statt Literal-Spacing)
+    content = re.sub(r'\(&md_ctx\b', '(md_ctx', content)
     if content != _before_evp:
         applied.append("openssl: EVP_MD_CTX Stack→Heap, cleanup→free")
 

@@ -413,3 +413,25 @@ def test_new_patches_no_effect_for_php80(tmp_path):
     assert not any("EVP_dss1" in p for p in patches)
     assert not any("SSLv2" in p for p in patches)
     assert not any("phar" in p for p in patches)
+
+
+def test_evp_md_ctx_sign_without_spaces_patch_for_php56(tmp_path):
+    # PHP 5.6 hat EVP_SignInit(&md_ctx, ohne Leerzeichen vor (
+    # Der alte Patch suchte nach "EVP_SignInit   (&md_ctx," (3 Spaces) → stiller No-op
+    f = _make_openssl56_c(
+        tmp_path,
+        "\tEVP_MD_CTX md_ctx;\n"
+        "\tEVP_SignInit(&md_ctx, mdtype);\n"
+        "\tEVP_SignUpdate(&md_ctx, data, data_len);\n"
+        "\tif (EVP_SignFinal(&md_ctx, sigbuf, &siglen, pkey)) {}\n"
+        "\tEVP_MD_CTX_cleanup(&md_ctx);\n",
+    )
+    patches = _patch_openssl3_php56(tmp_path)
+    assert any("EVP_MD_CTX" in p for p in patches)
+    content = f.read_text()
+    assert "EVP_MD_CTX *md_ctx = EVP_MD_CTX_new()" in content
+    assert "&md_ctx" not in content
+    assert "EVP_SignInit(md_ctx," in content
+    assert "EVP_SignUpdate(md_ctx," in content
+    assert "EVP_SignFinal(md_ctx," in content
+    assert "EVP_MD_CTX_free(md_ctx)" in content
