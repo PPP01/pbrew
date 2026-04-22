@@ -31,3 +31,33 @@ def test_collect_add_candidates_splits_three_buckets():
     assert "intl" in rebuild_c
     assert "mysql" in rebuild_c
     assert "pdo_firebird" not in rebuild_c  # kein Variant-Mapping
+
+
+import tomlkit
+from pathlib import Path
+from pbrew.cli.ext import _update_config_variants
+
+
+def test_update_config_variants_adds_without_duplicates(tmp_path: Path):
+    cfg = tmp_path / "default.toml"
+    cfg.write_text(tomlkit.dumps({
+        "build": {"variants": ["default", "opcache"]},
+    }))
+    added = _update_config_variants(cfg, ["intl", "opcache", "soap"])
+    data = tomlkit.loads(cfg.read_text()).unwrap()
+    assert data["build"]["variants"] == [
+        "default", "opcache", "intl", "soap"
+    ]
+    assert added == ["intl", "soap"]
+
+
+def test_update_config_variants_removes(tmp_path: Path):
+    from pbrew.cli.ext import _remove_config_variants
+    cfg = tmp_path / "dev.toml"
+    cfg.write_text(tomlkit.dumps({
+        "build": {"variants": ["default", "opcache", "intl", "soap"]},
+    }))
+    removed = _remove_config_variants(cfg, ["intl", "notthere"])
+    data = tomlkit.loads(cfg.read_text()).unwrap()
+    assert data["build"]["variants"] == ["default", "opcache", "soap"]
+    assert removed == ["intl"]

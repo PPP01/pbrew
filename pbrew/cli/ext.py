@@ -2,6 +2,7 @@ import subprocess
 from pathlib import Path
 
 import click
+import tomlkit
 
 from pbrew.core.paths import (
     family_from_version, logs_dir, state_file, version_bin,
@@ -344,6 +345,41 @@ def _collect_add_candidates(
         if n in VARIANT_EXTENSIONS and n not in active_variants
     )
     return local_candidates, pecl_candidates, rebuild_candidates
+
+
+def _update_config_variants(config_path: Path, variants: list[str]) -> list[str]:
+    """Fügt Variants additiv in eine Config-Datei ein. Erzeugt die Datei wenn nötig."""
+    if config_path.exists():
+        doc = tomlkit.loads(config_path.read_text())
+    else:
+        doc = tomlkit.document()
+    build = doc.setdefault("build", tomlkit.table())
+    current = list(build.get("variants", ["default"]))
+    added: list[str] = []
+    for v in variants:
+        if v not in current:
+            current.append(v)
+            added.append(v)
+    build["variants"] = current
+    config_path.write_text(tomlkit.dumps(doc))
+    return added
+
+
+def _remove_config_variants(config_path: Path, variants: list[str]) -> list[str]:
+    """Entfernt Variants aus einer Config-Datei. Datei muss existieren."""
+    doc = tomlkit.loads(config_path.read_text())
+    build = doc.get("build")
+    if build is None or "variants" not in build:
+        return []
+    current = list(build["variants"])
+    removed: list[str] = []
+    for v in variants:
+        if v in current:
+            current.remove(v)
+            removed.append(v)
+    build["variants"] = current
+    config_path.write_text(tomlkit.dumps(doc))
+    return removed
 
 
 def _resolve_family(prefix: Path, version_spec: "str | None") -> str:
