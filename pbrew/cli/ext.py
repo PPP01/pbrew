@@ -2,6 +2,7 @@ import subprocess
 from pathlib import Path
 
 import click
+import questionary
 import tomlkit
 
 from pbrew.core.paths import (
@@ -380,6 +381,31 @@ def _remove_config_variants(config_path: Path, variants: list[str]) -> list[str]
     build["variants"] = current
     config_path.write_text(tomlkit.dumps(doc))
     return removed
+
+
+def _prompt_config_choice(configs_dir: Path, active_family: str) -> "Path | None":
+    """Fragt nach der Ziel-Config. Gibt None bei Abbruch zurück."""
+    existing = sorted(p.name for p in configs_dir.glob("*.toml"))
+    choices = existing + ["<neu>"]
+    label = (
+        f"In welche Config sollen die Variants fuer PHP {active_family} "
+        f"eingetragen werden?"
+    )
+    pick = questionary.select(label, choices=choices).ask()
+    if pick is None:
+        return None
+    if pick == "<neu>":
+        name = questionary.text(
+            "Name der neuen Config (a-z, 0-9, _ und -):"
+        ).ask()
+        if not name:
+            return None
+        import re
+        if not re.fullmatch(r"[a-zA-Z0-9_\-]+", name):
+            click.echo(f"Ungueltiger Name: {name!r}", err=True)
+            return None
+        return configs_dir / f"{name}.toml"
+    return configs_dir / pick
 
 
 def _resolve_family(prefix: Path, version_spec: "str | None") -> str:
