@@ -9,28 +9,31 @@ def test_pecl_suggestions_contains_popular_names():
     assert _PECL_SUGGESTIONS.isdisjoint(_STANDARD_EXTENSIONS)
 
 
-def test_collect_add_candidates_splits_three_buckets():
-    from unittest.mock import patch
+def test_collect_add_candidates_splits_four_buckets():
     from pbrew.cli.ext import _collect_add_candidates
 
     loaded = {"json": ("json", "8.4"), "spl": ("spl", "8.4")}
     local = ["apcu", "redis"]
     standard = ["intl", "mysql", "tokenizer"]
-    pbrew_active = {"apcu"}  # apcu soll NICHT unter local_candidates landen
+    pbrew_active = {"apcu"}
     active_variants = {"opcache"}
 
-    local_c, pecl_c, rebuild_c = _collect_add_candidates(
+    local_c, pecl_c, ext_c, build_opt_c = _collect_add_candidates(
         loaded=loaded, local=local, standard=standard,
         pbrew_active=pbrew_active, active_variants=active_variants,
     )
     assert local_c == ["redis"]
-    # pecl_candidates = _PECL_SUGGESTIONS minus loaded/local/standard
     assert "xdebug" in pecl_c
     assert "apcu" not in pecl_c          # ist lokal
-    # rebuild_c = standard ∩ VARIANT_EXTENSIONS minus active_variants
-    assert "intl" in rebuild_c
-    assert "mysql" in rebuild_c
-    assert "tokenizer" not in rebuild_c  # immer eingebaut, kein Variant-Mapping
+
+    # ext_c = VARIANT_EXTENSIONS minus active_variants minus loaded/local
+    assert "intl" in ext_c
+    assert "mysql" in ext_c
+    assert "tokenizer" not in ext_c      # immer eingebaut, kein Variant-Mapping
+    assert "argon2" not in ext_c         # ist Build-Option, nicht Extension
+
+    # build_opt_c = VARIANT_BUILD_OPTIONS minus active_variants
+    assert "argon2" in build_opt_c
 
 
 import tomlkit

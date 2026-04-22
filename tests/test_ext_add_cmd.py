@@ -69,7 +69,7 @@ def test_ext_add_rebuild_adds_to_config(tmp_path):
     with patch("pbrew.cli.ext._query_extensions", return_value=({}, [], ["intl"])), \
          patch("pbrew.cli.ext._is_tty", return_value=True), \
          patch("pbrew.cli.ext._prompt_multiselect",
-               return_value={"Standard (Rebuild)": ["intl"]}), \
+               return_value={"Extensions (Rebuild)": ["intl"]}), \
          patch("pbrew.cli.ext._prompt_config_choice",
                return_value=configs / "default.toml"):
         result = _invoke(tmp_path, tmp_path, "ext", "add", "8.4")
@@ -89,7 +89,7 @@ def test_ext_add_rebuild_creates_new_config(tmp_path):
     with patch("pbrew.cli.ext._query_extensions", return_value=({}, [], ["intl"])), \
          patch("pbrew.cli.ext._is_tty", return_value=True), \
          patch("pbrew.cli.ext._prompt_multiselect",
-               return_value={"Standard (Rebuild)": ["intl"]}), \
+               return_value={"Extensions (Rebuild)": ["intl"]}), \
          patch("pbrew.cli.ext._prompt_config_choice",
                return_value=new_cfg):
         result = _invoke(tmp_path, tmp_path, "ext", "add", "8.4")

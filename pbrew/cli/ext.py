@@ -8,7 +8,7 @@ import questionary
 import tomlkit
 
 from pbrew.core.config import load_config
-from pbrew.core.builder import VARIANT_EXTENSIONS
+from pbrew.core.builder import VARIANT_EXTENSIONS, VARIANT_BUILD_OPTIONS
 from pbrew.core.paths import (
     confd_dir, configs_dir, family_from_version, logs_dir, state_file, version_bin,
 )
@@ -286,7 +286,7 @@ def add_ext_cmd(ctx, version_spec):
     }
 
     loaded, local, standard = _query_extensions(php_bin)
-    local_c, pecl_c, rebuild_c = _collect_add_candidates(
+    local_c, pecl_c, ext_c, build_opt_c = _collect_add_candidates(
         loaded=loaded, local=local, standard=standard,
         pbrew_active=pbrew_active, active_variants=active_variants,
     )
@@ -294,7 +294,8 @@ def add_ext_cmd(ctx, version_spec):
     groups = {
         "Lokale .so": local_c,
         "PECL": pecl_c,
-        "Standard (Rebuild)": rebuild_c,
+        "Extensions (Rebuild)": ext_c,
+        "Build-Optionen (Rebuild)": build_opt_c,
     }
     picked = _prompt_multiselect(
         f"Extensions fuer PHP {family} hinzufuegen:", groups,
@@ -318,7 +319,7 @@ def add_ext_cmd(ctx, version_spec):
         except SystemExit:
             summary.append(f"  [FEHLER]     {name}")
 
-    rebuild_picks = picked.get("Standard (Rebuild)", [])
+    rebuild_picks = picked.get("Extensions (Rebuild)", []) + picked.get("Build-Optionen (Rebuild)", [])
     if rebuild_picks:
         target = _prompt_config_choice(cfg_path, family)
         if target is None:
@@ -520,7 +521,7 @@ def _collect_add_candidates(
     standard: list[str],
     pbrew_active: set[str],
     active_variants: set[str],
-) -> tuple[list[str], list[str], list[str]]:
+) -> tuple[list[str], list[str], list[str], list[str]]:
     local_candidates = [n for n in local if n.lower() not in pbrew_active]
 
     known = {n.lower() for n in loaded}
@@ -530,11 +531,16 @@ def _collect_add_candidates(
         n for n in _PECL_SUGGESTIONS if n.lower() not in known
     )
 
-    rebuild_candidates = sorted(
-        n for n in standard
-        if n in VARIANT_EXTENSIONS and n not in active_variants
+    known_lower = {n.lower() for n in loaded} | {n.lower() for n in local}
+    ext_candidates = sorted(
+        n for n in VARIANT_EXTENSIONS
+        if n not in active_variants and n.lower() not in known_lower
     )
-    return local_candidates, pecl_candidates, rebuild_candidates
+    build_option_candidates = sorted(
+        n for n in VARIANT_BUILD_OPTIONS
+        if n not in active_variants
+    )
+    return local_candidates, pecl_candidates, ext_candidates, build_option_candidates
 
 
 def _update_config_variants(config_path: Path, variants: list[str]) -> list[str]:

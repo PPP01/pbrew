@@ -63,10 +63,17 @@ _VARIANT_FLAGS: dict[str, list[str]] = {
 # Öffentliche Aliase für externe Consumer (CLI-Kommandos wie `ext add`).
 VARIANT_FLAGS: dict[str, list[str]] = _VARIANT_FLAGS
 
-# Teilmenge der Variants, die echte Extensions darstellen (keine SAPI-Einträge).
-_SAPI_VARIANTS = frozenset({"cli", "fpm", "fpm-systemd"})
+VARIANT_SAAPIS: frozenset[str] = frozenset({"cli", "fpm", "fpm-systemd"})
+_SAPI_VARIANTS = VARIANT_SAAPIS  # interner Alias, Abwärtskompatibilität
+
+# Reine Build-Zeit-Features: aktivieren Konstanten/Funktionen, erscheinen
+# aber nicht als eigener Eintrag in `php -m`.
+VARIANT_BUILD_OPTIONS: frozenset[str] = frozenset({"argon2"})
+
+# Echte Extensions: tauchen nach dem Build in `php -m` auf.
 VARIANT_EXTENSIONS: frozenset[str] = frozenset(
-    name for name in _VARIANT_FLAGS if name not in _SAPI_VARIANTS
+    name for name in _VARIANT_FLAGS
+    if name not in VARIANT_SAAPIS and name not in VARIANT_BUILD_OPTIONS
 )
 
 
