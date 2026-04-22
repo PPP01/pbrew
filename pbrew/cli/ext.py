@@ -18,6 +18,14 @@ _ZEND_EXTENSIONS = {"xdebug", "opcache", "ioncube_loader"}
 # Extensions die nur in phpd (Debug-Scan-Dir) geladen werden sollen, nicht in php
 _DEBUG_EXTENSIONS = {"xdebug"}
 
+# Kuratierte Liste populärer PECL-Extensions als Vorauswahl in `ext add`.
+_PECL_SUGGESTIONS: frozenset[str] = frozenset({
+    "apcu", "ast", "ds", "event", "grpc", "igbinary", "imagick",
+    "mailparse", "memcache", "memcached", "mongodb", "msgpack",
+    "oauth", "protobuf", "rdkafka", "redis", "swoole", "uuid",
+    "uopz", "xdebug", "yaml", "zstd",
+})
+
 
 @click.group("ext")
 def ext_cmd():
