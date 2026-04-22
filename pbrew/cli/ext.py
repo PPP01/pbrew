@@ -408,6 +408,35 @@ def _prompt_config_choice(configs_dir: Path, active_family: str) -> "Path | None
     return configs_dir / pick
 
 
+def _prompt_multiselect(
+    title: str, groups: dict[str, list[str]]
+) -> dict[str, list[str]]:
+    """Zeigt eine questionary.checkbox mit Gruppen-Separatoren.
+
+    Leere Gruppen werden mit Hinweis-Zeile dargestellt, aber nicht auswählbar.
+    Rückgabe: {Gruppenname: [gewählte Items]} – leere Gruppen nicht enthalten.
+    """
+    from questionary import Choice, Separator
+
+    choices: list = []
+    for group_name, items in groups.items():
+        choices.append(Separator(f"── {group_name} ──"))
+        if not items:
+            choices.append(Choice(title="  (keine)", disabled="leer"))
+            continue
+        for item in items:
+            choices.append(Choice(title=item, value=f"{group_name}::{item}"))
+
+    picked = questionary.checkbox(title, choices=choices).ask()
+    if not picked:
+        return {}
+    result: dict[str, list[str]] = {}
+    for key in picked:
+        group, _, item = key.partition("::")
+        result.setdefault(group, []).append(item)
+    return result
+
+
 def _resolve_family(prefix: Path, version_spec: "str | None") -> str:
     if version_spec:
         return family_from_version(version_spec)
