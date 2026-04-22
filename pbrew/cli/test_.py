@@ -119,7 +119,13 @@ def _print_results(results: list[TestResult]) -> None:
         elif r.passed:
             click.echo(click.style(f"    ✓ {r.name}", fg="green"))
         else:
-            click.echo(click.style(f"    ✗ {r.name}", fg="red"))
-            if r.error:
-                short = r.error.split("\n")[0][:80]
-                click.echo(click.style(f"      → {short}", fg="red", dim=True))
+            # Versions-Hinweise kompakt in der gleichen Zeile
+            _VERSION_NOTES = ("erst ab PHP ", "nur bis PHP ")
+            is_version_note = any(r.error.startswith(p) for p in _VERSION_NOTES)
+            if is_version_note:
+                click.echo(click.style(f"    ✗ {r.name}  ({r.error})", fg="yellow"))
+            else:
+                click.echo(click.style(f"    ✗ {r.name}", fg="red"))
+                if r.error:
+                    short = r.error.split("\n")[0][:80]
+                    click.echo(click.style(f"      → {short}", fg="red", dim=True))

@@ -39,15 +39,15 @@ def run_tests(
         if version_tuple < test.min_version:
             results.append(TestResult(
                 test.name, test.category,
-                passed=False, skipped=True,
-                skip_reason=f"erfordert PHP {_fmt_version(test.min_version)}+",
+                passed=False,
+                error=f"erst ab PHP {_fmt_version(test.min_version)}",
             ))
             continue
         if version_tuple > test.max_version:
             results.append(TestResult(
                 test.name, test.category,
-                passed=False, skipped=True,
-                skip_reason=f"nur bis PHP {_fmt_version(test.max_version)}",
+                passed=False,
+                error=f"nur bis PHP {_fmt_version(test.max_version)}",
             ))
             continue
         results.append(_run_one(php_bin, test))
