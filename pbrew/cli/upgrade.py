@@ -12,11 +12,24 @@ from pbrew.core.state import get_family_state
 
 
 @click.command("upgrade")
-@click.argument("version_spec", required=False)
-@click.option("--dry-run", is_flag=True, help="Nur anzeigen, nicht ausführen")
+@click.argument("version_spec", required=False, metavar="[VERSION]")
+@click.option("--dry-run", is_flag=True, help="Verfügbare Updates anzeigen, nicht installieren")
 @click.pass_context
 def upgrade_cmd(ctx, version_spec, dry_run):
-    """Aktualisiert PHP-Versionen auf das neueste Patch-Level."""
+    """Vollständiger Upgrade-Workflow auf das neueste Patch-Level.
+
+    Installiert die neue PHP-Version, reinstalliert PECL-Extensions, prüft
+    php.ini-Änderungen, startet FPM neu, führt Health-Checks durch und bietet
+    an, alte Versionen zu bereinigen.
+
+    Ohne Argument werden alle installierten PHP-Families aktualisiert.
+    Für einen schnellen Update ohne Extras: `pbrew update VERSION`.
+
+    \b
+      pbrew upgrade           # alle Families prüfen und aktualisieren
+      pbrew upgrade 84        # nur PHP 8.4 aktualisieren
+      pbrew upgrade --dry-run # nur anzeigen, was aktualisiert würde
+    """
     prefix: Path = ctx.obj["prefix"]
 
     families = _families_to_upgrade(prefix, version_spec)
@@ -123,8 +136,9 @@ def _do_upgrade(ctx, prefix: Path, family: str, current: str, latest) -> None:
                        ext_version=None, jobs=None)
 
     # Symlinks aktualisieren (write_versioned_wrappers ist der neue _update_wrappers)
-    from pbrew.core.wrappers import write_versioned_wrappers
+    from pbrew.core.wrappers import write_naked_wrappers, write_versioned_wrappers
     write_versioned_wrappers(prefix, latest.version, family)
+    write_naked_wrappers(prefix)
 
     # FPM neustarten (wenn Service existiert)
     try:

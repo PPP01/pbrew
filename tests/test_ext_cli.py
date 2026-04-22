@@ -114,8 +114,17 @@ def test_ext_remove_missing_fails(tmp_path):
 # Family-Resolver
 # ---------------------------------------------------------------------------
 
-def test_family_resolved_from_env(tmp_path):
-    """Ohne explizites Argument wird PBREW_PHP verwendet."""
+def test_family_resolved_from_pbrew_active(tmp_path):
+    """Ohne explizites Argument wird PBREW_ACTIVE verwendet (neue Architektur)."""
+    _setup_version(tmp_path)
+    _write_ini(tmp_path, "8.4", "apcu")
+    result = _invoke(tmp_path, tmp_path, "ext", "list", env_extra={"PBREW_ACTIVE": "8.4.22"})
+    assert result.exit_code == 0
+    assert "apcu" in result.output
+
+
+def test_family_resolved_from_pbrew_php_fallback(tmp_path):
+    """PBREW_PHP wird als Fallback akzeptiert, wenn PBREW_ACTIVE nicht gesetzt."""
     _setup_version(tmp_path)
     _write_ini(tmp_path, "8.4", "apcu")
     result = _invoke(tmp_path, tmp_path, "ext", "list", env_extra={"PBREW_PHP": "8.4"})

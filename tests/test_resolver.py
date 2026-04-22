@@ -114,6 +114,40 @@ def test_fetch_specific_raises_on_invalid_format():
         fetch_specific("8.4")
 
 
+def test_fetch_known_eol_marks_unsupported_families():
+    """EOL-Releases aus nicht-supported Families werden als eol=True markiert."""
+    meta = {"supported_versions": ["8.4"]}
+    data_84 = {"8.4.22": {"source": [{"filename": "php-8.4.22.tar.bz2", "sha256": "x", "md5": "y"}]}}
+    data_81 = {"8.1.10": {"source": [{"filename": "php-8.1.10.tar.bz2", "sha256": "a", "md5": "b"}]}}
+    empty = {}
+
+    responses = [meta, data_84] + [empty] * 7 + [data_81, empty]
+    with patch("pbrew.core.resolver.urllib.request.urlopen",
+               _mock_urlopen_sequence(*responses)):
+        releases = fetch_known(8, include_eol=True)
+
+    eol_releases = [r for r in releases if r.eol]
+    supported_releases = [r for r in releases if not r.eol]
+    assert any(r.version == "8.1.10" for r in eol_releases)
+    assert any(r.version == "8.4.22" for r in supported_releases)
+
+
+def test_fetch_known_php7_all_eol():
+    """Für PHP 7 (keine supported_versions) werden alle Releases als EOL markiert."""
+    meta = {"supported_versions": []}
+    data_74 = {"7.4.33": {"source": [{"filename": "php-7.4.33.tar.bz2", "sha256": "z", "md5": "w"}]}}
+    empty = {}
+
+    responses = [meta] + [empty] * 6 + [data_74, empty, empty, empty]
+    with patch("pbrew.core.resolver.urllib.request.urlopen",
+               _mock_urlopen_sequence(*responses)):
+        releases = fetch_known(7, include_eol=True)
+
+    assert len(releases) == 1
+    assert releases[0].version == "7.4.33"
+    assert releases[0].eol is True
+
+
 def test_fetch_known_numeric_sort_single_digit_patch():
     """String-Sort würde '8.3.9' nach '8.3.10' einordnen – numerisch muss 8.3.10 > 8.3.9."""
     meta = {"supported_versions": ["8.3"]}

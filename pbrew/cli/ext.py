@@ -1,17 +1,22 @@
+import subprocess
 from pathlib import Path
 
 import click
 
 from pbrew.core.paths import (
-    family_from_version, logs_dir, state_file,
+    family_from_version, logs_dir, state_file, version_bin,
 )
 from pbrew.core.state import add_extension, get_family_state
+from pbrew.core.wrappers import write_phpd_wrapper
 from pbrew.extensions.installer import extract_tarball, install_extension, write_ext_ini
-from pbrew.extensions.pecl import fetch_latest_stable, fetch_releases
+from pbrew.extensions.pecl import fetch_latest_by_stability, fetch_latest_stable, fetch_releases
 from pbrew.utils.download import download
 
 # Bekannte Zend-Extensions (brauchen zend_extension= statt extension=)
 _ZEND_EXTENSIONS = {"xdebug", "opcache", "ioncube_loader"}
+
+# Extensions die nur in phpd (Debug-Scan-Dir) geladen werden sollen, nicht in php
+_DEBUG_EXTENSIONS = {"xdebug"}
 
 
 @click.group("ext")
@@ -20,29 +25,59 @@ def ext_cmd():
 
 
 @ext_cmd.command("install")
-@click.argument("ext_name")
-@click.argument("version_spec", required=False)
+@click.argument("ext_name", metavar="EXT[@VERSION]")
+@click.argument("version_spec", required=False, metavar="[PHP-VERSION]")
 @click.option("-v", "--version", "ext_version", default=None, help="Exakte Extension-Version")
-@click.option("-j", "--jobs", type=int, default=None)
+@click.option("-j", "--jobs", type=int, default=None, help="Parallele Build-Jobs")
 @click.pass_context
 def install_ext_cmd(ctx, ext_name, version_spec, ext_version, jobs):
-    """Installiert eine PECL-Extension für die aktive (oder angegebene) PHP-Version."""
+    """Installiert eine PECL-Extension für die aktive (oder angegebene) PHP-Version.
+
+    EXT[@VERSION] – Name der Extension, optional mit Version oder Stabilitätsstufe:
+
+    \b
+      pbrew ext install xdebug            # neueste stabile Version
+      pbrew ext install xdebug@beta       # neueste Beta-Version
+      pbrew ext install xdebug@alpha      # neueste Alpha-Version
+      pbrew ext install xdebug@3.4.0      # exakte Version
+      pbrew ext install xdebug 84         # für PHP 8.4
+    """
+    if "@" in ext_name:
+        ext_name, at_version = ext_name.split("@", 1)
+        if at_version and not ext_version:
+            ext_version = at_version
+
+    _STABILITY_KEYWORDS = {"latest", "stable", "beta", "alpha"}
+    stability_request = None
+    if ext_version and ext_version.lower() in _STABILITY_KEYWORDS:
+        kw = ext_version.lower()
+        stability_request = "stable" if kw in {"latest", "stable"} else kw
+        ext_version = None
+
     prefix: Path = ctx.obj["prefix"]
     family = _resolve_family(prefix, version_spec)
     php_version = _resolve_active_version(prefix, family)
 
     click.echo(f"Installiere {ext_name} für PHP {php_version}...")
 
-    if ext_version:
-        releases = fetch_releases(ext_name)
-        release = next((r for r in releases if r.version == ext_version), None)
-        if not release:
-            click.echo(f"Version {ext_version} nicht gefunden.", err=True)
-            raise SystemExit(1)
-    else:
-        click.echo(f"  Suche neueste stabile Version von {ext_name}...")
-        release = fetch_latest_stable(ext_name)
-        click.echo(f"  Neueste stabile Version: {release.version}")
+    try:
+        if ext_version:
+            releases = fetch_releases(ext_name)
+            release = next((r for r in releases if r.version == ext_version), None)
+            if not release:
+                click.echo(f"  Version {ext_version} nicht gefunden.", err=True)
+                raise SystemExit(1)
+        elif stability_request and stability_request != "stable":
+            click.echo(f"  Suche neueste {stability_request}-Version von {ext_name}...")
+            release = fetch_latest_by_stability(ext_name, stability_request)
+            click.echo(f"  Neueste {stability_request}-Version: {release.version}")
+        else:
+            click.echo(f"  Suche neueste stabile Version von {ext_name}...")
+            release = fetch_latest_stable(ext_name)
+            click.echo(f"  Neueste stabile Version: {release.version}")
+    except RuntimeError as e:
+        click.echo(f"  Fehler: {e}", err=True)
+        raise SystemExit(1)
 
     dist_dir = prefix / "distfiles"
     dist_dir.mkdir(parents=True, exist_ok=True)
@@ -51,7 +86,7 @@ def install_ext_cmd(ctx, ext_name, version_spec, ext_version, jobs):
         click.echo(f"  Lade {ext_name}-{release.version}.tgz herunter...")
         download(release.tarball_url, tarball)
 
-    build_dir = prefix / "build" / f"{ext_name}-{release.version}"
+    build_dir = prefix / "build" / php_version / f"{ext_name}-{release.version}"
     if not build_dir.exists():
         src_dir = extract_tarball(tarball, build_dir.parent)
         if src_dir != build_dir:
@@ -63,8 +98,9 @@ def install_ext_cmd(ctx, ext_name, version_spec, ext_version, jobs):
     config = load_config(configs_dir(prefix), family)
     num_jobs = get_jobs(config, override=jobs)
 
-    log_path = logs_dir(prefix) / f"{ext_name}-{release.version}-{php_version}.log"
-    logs_dir(prefix).mkdir(parents=True, exist_ok=True)
+    _logs = logs_dir(prefix)
+    _logs.mkdir(parents=True, exist_ok=True)
+    log_path = _logs / f"{ext_name}-{release.version}-{php_version}.log"
 
     click.echo(f"  Baue {ext_name} {release.version}...")
     with open(log_path, "w") as log:
@@ -76,11 +112,15 @@ def install_ext_cmd(ctx, ext_name, version_spec, ext_version, jobs):
             raise SystemExit(1)
 
     is_zend = ext_name.lower() in _ZEND_EXTENSIONS
-    ini = write_ext_ini(prefix, family, ext_name, is_zend=is_zend)
+    is_debug = ext_name.lower() in _DEBUG_EXTENSIONS
+    ini = write_ext_ini(prefix, family, ext_name, is_zend=is_zend, debug=is_debug)
     click.echo(f"  INI: {ini}")
 
     sf = state_file(prefix, family)
     add_extension(sf, ext_name)
+
+    write_phpd_wrapper(prefix, php_version)
+
     click.echo(f"✓ {ext_name} {release.version} installiert.")
 
 
@@ -98,6 +138,9 @@ def remove_ext_cmd(ctx, ext_name, version_spec):
         raise SystemExit(1)
     disabled = ini.with_suffix(".ini.disabled")
     ini.rename(disabled)
+    if ext_name.lower() == "xdebug":
+        php_version = _resolve_active_version(prefix, family)
+        write_phpd_wrapper(prefix, php_version)
     click.echo(f"✓ {ext_name} deaktiviert (INI: {disabled})")
 
 
@@ -160,11 +203,72 @@ def list_ext_cmd(ctx, version_spec):
     click.echo()
 
 
+def _query_extensions(php_bin: Path) -> tuple[dict[str, tuple[str, str]], list[str]]:
+    """Fragt geladene und verfügbare Extensions per PHP-Binary ab.
+
+    Returns:
+        loaded:    {lowercase_name: (original_name, version_string)}
+        available: [name] – .so-Dateien im extension_dir, die nicht geladen sind
+    """
+    script = (
+        "foreach(get_loaded_extensions() as $e){"
+        "$v=phpversion($e);echo $e.'|'.($v?:'').PHP_EOL;}"
+    )
+    r = subprocess.run([str(php_bin), "-r", script], capture_output=True, text=True)
+    loaded: dict[str, tuple[str, str]] = {}
+    for line in r.stdout.splitlines():
+        if "|" in line:
+            name, version = line.split("|", 1)
+            loaded[name.lower()] = (name, version)
+
+    r2 = subprocess.run(
+        [str(php_bin), "-r", "echo ini_get('extension_dir');"],
+        capture_output=True, text=True,
+    )
+    ext_dir = Path(r2.stdout.strip())
+
+    available: list[str] = []
+    if ext_dir.is_dir():
+        for so in sorted(ext_dir.glob("*.so")):
+            if so.stem.lower() not in loaded:
+                available.append(so.stem)
+
+    return loaded, available
+
+
+@click.command("extension")
+@click.argument("version_spec", required=False)
+@click.pass_context
+def extension_cmd(ctx, version_spec):
+    """Zeigt geladene und verfügbare PHP-Extensions (wie phpbrew extension)."""
+    prefix: Path = ctx.obj["prefix"]
+    family = _resolve_family(prefix, version_spec)
+    php_version = _resolve_active_version(prefix, family)
+    php_bin = version_bin(prefix, php_version, "php")
+
+    if not php_bin.exists():
+        click.echo(f"PHP-Binary nicht gefunden: {php_bin}", err=True)
+        raise SystemExit(1)
+
+    loaded, available = _query_extensions(php_bin)
+
+    col_width = max((len(name) for _, (name, _) in loaded.items()), default=10) + 2
+
+    click.echo("Loaded extensions:")
+    for _, (name, version) in sorted(loaded.items()):
+        click.echo(f" [*] {name:<{col_width}} {version}")
+
+    if available:
+        click.echo("Available local extensions:")
+        for name in available:
+            click.echo(f" [ ] {name}")
+
+
 def _resolve_family(prefix: Path, version_spec: "str | None") -> str:
     if version_spec:
         return family_from_version(version_spec)
     import os
-    env = os.environ.get("PBREW_PHP")
+    env = os.environ.get("PBREW_ACTIVE") or os.environ.get("PBREW_PHP")
     if env:
         return family_from_version(env)
     from pbrew.core.state import get_global_state

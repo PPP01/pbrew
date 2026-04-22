@@ -101,8 +101,18 @@ def get_jobs(config: dict, override: int | None = None) -> int:
     return int(jobs)
 
 
-def run_configure(src_dir: Path, args: list[str], log_file: IO[str]) -> None:
-    _run([str(src_dir / "configure")] + args, cwd=src_dir, log_file=log_file)
+def run_configure(
+    src_dir: Path,
+    args: list[str],
+    log_file: IO[str],
+    extra_path: Path | None = None,
+) -> None:
+    env = None
+    if extra_path is not None:
+        import os as _os
+        current = _os.environ.get("PATH", "")
+        env = {**_os.environ, "PATH": f"{extra_path}:{current}"}
+    _run([str(src_dir / "configure")] + args, cwd=src_dir, log_file=log_file, env=env)
 
 
 def run_make(src_dir: Path, jobs: int, log_file: IO[str]) -> None:
@@ -113,13 +123,19 @@ def run_make_install(src_dir: Path, log_file: IO[str]) -> None:
     _run(["make", "install"], cwd=src_dir, log_file=log_file)
 
 
-def _run(cmd: list[str], cwd: Path, log_file: IO[str]) -> None:
+def _run(
+    cmd: list[str],
+    cwd: Path,
+    log_file: IO[str],
+    env: dict | None = None,
+) -> None:
     process = subprocess.Popen(
         cmd,
         cwd=str(cwd),
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
+        env=env,
     )
     for line in process.stdout:
         log_file.write(line)

@@ -29,10 +29,11 @@ def test_wrapper_no_pip_install():
     assert "pip install" not in content
 
 
-def test_wrapper_contains_use_switch_handling():
-    """use/switch brauchen Sonderbehandlung um Parent-Env zu aendern."""
+def test_wrapper_delegates_all_commands_via_exec():
+    """Wrapper leitet alle Befehle per exec weiter – eval übernimmt die Shell-Funktion."""
     content = generate_wrapper_script(Path("/home/alice/.pbrew"))
-    assert "use|switch" in content
+    assert 'exec "$PBREW_PYTHON_BIN" "$@"' in content
+    assert "case" not in content
 
 
 def test_wrapper_contains_exec_for_normal_commands():
@@ -135,10 +136,10 @@ def test_init_writes_path_export_not_shell_init(tmp_path):
         "SHELL": "/bin/bash",
         "XDG_CONFIG_HOME": str(tmp_path / "config"),
     }), patch("pbrew.cli.init_._rc_file_for", return_value=rc_file):
-        result = runner.invoke(main, ["init"], input=f"{prefix}\ny\n")
+        result = runner.invoke(main, ["init"], input=f"{prefix}\n")
     assert result.exit_code == 0, result.output
     content = rc_file.read_text()
-    assert "export PATH=" in content
-    assert str(prefix / "bin") in content
+    assert "source" in content
+    assert "pbrew-settings.sh" in content
     # Kein shell-init in der .bashrc
     assert "shell-init" not in content

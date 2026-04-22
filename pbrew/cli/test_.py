@@ -1,0 +1,131 @@
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+import click
+
+from pbrew.core.paths import (
+    family_from_version,
+    state_file,
+    version_bin,
+    version_dir,
+)
+from pbrew.core.state import get_family_state
+from pbrew.core.php_test_runner import CATEGORIES, TestResult, run_tests
+
+
+@click.command("test")
+@click.argument("category", required=False, metavar="[KATEGORIE]")
+@click.argument("version_spec", required=False, metavar="[PHP-VERSION]")
+@click.pass_context
+def test_cmd(ctx, category, version_spec):
+    """Fuehrt Integrationstests gegen ein installiertes PHP aus.
+
+    \b
+    Kategorien: basic, ssl, hash, modules
+    \b
+      pbrew test               # alle Kategorien, aktive Version
+      pbrew test ssl           # nur SSL-Tests
+      pbrew test ssl 56        # SSL-Tests fuer PHP 5.6
+      pbrew test 84            # alle Tests fuer PHP 8.4
+    """
+    prefix: Path = ctx.obj["prefix"]
+
+    # Erstes Argument koennte eine Version statt Kategorie sein
+    if category and category not in CATEGORIES:
+        if version_spec is None:
+            version_spec, category = category, None
+        else:
+            raise click.UsageError(
+                f"Unbekannte Kategorie '{category}'. Bekannte Kategorien: {', '.join(CATEGORIES)}"
+            )
+
+    categories = [category] if category else None
+
+    # Ohne Versionsangabe: das php aus dem PATH nehmen (respektiert pbrew use / Shell-Kontext)
+    if version_spec is None:
+        result = _find_shell_php()
+        if result is None:
+            click.echo("Kein php im PATH gefunden. Zuerst: pbrew use <VERSION>", err=True)
+            raise SystemExit(1)
+        php_bin, version = result
+    else:
+        version = _resolve_version(prefix, version_spec)
+        if not version:
+            click.echo(f"PHP {version_spec} ist nicht installiert.", err=True)
+            raise SystemExit(1)
+        php_bin = version_bin(prefix, version, "php")
+        if not php_bin.exists():
+            click.echo(f"PHP-Binary nicht gefunden: {php_bin}", err=True)
+            raise SystemExit(1)
+
+    cat_label = f"  Kategorien:  {', '.join(categories)}" if categories else "  Kategorien:  alle"
+    click.echo(f"\nPHP {version} — pbrew test")
+    click.echo(cat_label)
+    click.echo("─" * 48)
+
+    results = run_tests(php_bin, version, categories)
+    _print_results(results)
+
+    passed = sum(1 for r in results if r.passed)
+    skipped = sum(1 for r in results if r.skipped)
+    failed = sum(1 for r in results if not r.passed and not r.skipped)
+    total = len(results) - skipped
+
+    click.echo("─" * 48)
+    skip_note = f", {skipped} übersprungen" if skipped else ""
+    click.echo(f"\n  {passed}/{total} Tests bestanden{skip_note}\n")
+
+    if failed:
+        raise SystemExit(1)
+
+
+def _find_shell_php() -> tuple[Path, str] | None:
+    """Gibt (php_bin, version) für das php zurück, das gerade im PATH aktiv ist."""
+    php = shutil.which("php")
+    if not php:
+        return None
+    try:
+        version = subprocess.check_output(
+            [php, "-r", "echo PHP_VERSION;"],
+            text=True, timeout=5,
+        ).strip()
+        return Path(php), version
+    except Exception:
+        return None
+
+
+def _resolve_version(prefix: Path, version_spec: str) -> str | None:
+    family = family_from_version(version_spec)
+    if version_spec.count(".") == 2:
+        return version_spec if version_dir(prefix, version_spec).exists() else None
+    return get_family_state(state_file(prefix, family)).get("active")
+
+
+def _print_results(results: list[TestResult]) -> None:
+    current_cat = None
+    for r in results:
+        if r.category != current_cat:
+            current_cat = r.category
+            click.echo(f"\n  [{current_cat}]")
+
+        if r.skipped:
+            icon = "~"
+            line = f"    {icon} {r.name}"
+            if r.skip_reason:
+                line += f"  ({r.skip_reason})"
+            click.echo(click.style(line, dim=True))
+        elif r.passed:
+            click.echo(click.style(f"    ✓ {r.name}", fg="green"))
+        else:
+            # Versions-Hinweise kompakt in der gleichen Zeile
+            _VERSION_NOTES = ("erst ab PHP ", "nur bis PHP ")
+            is_version_note = any(r.error.startswith(p) for p in _VERSION_NOTES)
+            if is_version_note:
+                click.echo(click.style(f"    ✗ {r.name}  ({r.error})", fg="yellow"))
+            else:
+                click.echo(click.style(f"    ✗ {r.name}", fg="red"))
+                if r.error:
+                    short = r.error.split("\n")[0][:80]
+                    click.echo(click.style(f"      → {short}", fg="red", dim=True))

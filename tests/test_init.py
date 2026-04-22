@@ -78,3 +78,75 @@ def test_get_prefix_env_overrides_config(tmp_path):
     }):
         from pbrew.core.paths import get_prefix
         assert get_prefix() == tmp_path / "env-prefix"
+
+
+def test_init_writes_settings_file(tmp_path):
+    """pbrew init erzeugt pbrew-settings.sh im Prefix."""
+    prefix = tmp_path / "mypbrew"
+    result = _invoke(tmp_path, str(prefix) + "\n")
+    assert result.exit_code == 0, result.output
+    settings = prefix / "pbrew-settings.sh"
+    assert settings.exists(), "pbrew-settings.sh nicht angelegt"
+    content = settings.read_text()
+    assert "PBREW_ROOT" in content
+    assert "pbrew()" in content
+
+
+def test_init_shell_integration_source_line(tmp_path):
+    """pbrew init trägt source-Zeile in .bashrc ein wenn SHELL=bash."""
+    prefix = tmp_path / "mypbrew"
+    bashrc = tmp_path / ".bashrc"
+    runner = CliRunner()
+    with patch.dict(os.environ, {
+        "XDG_CONFIG_HOME": str(tmp_path / "config"),
+        "SHELL": "/bin/bash",
+        "HOME": str(tmp_path),
+    }):
+        result = runner.invoke(main, ["init"], input=str(prefix) + "\n")
+    assert result.exit_code == 0, result.output
+    assert bashrc.exists()
+    content = bashrc.read_text()
+    assert "source" in content
+    assert "pbrew-settings.sh" in content
+
+
+def test_init_shell_integration_idempotent(tmp_path):
+    """Zweiter pbrew init Aufruf zeigt 'Bereits eingetragen', kein Duplikat."""
+    prefix = tmp_path / "mypbrew"
+    runner = CliRunner()
+    env = {
+        "XDG_CONFIG_HOME": str(tmp_path / "config"),
+        "SHELL": "/bin/bash",
+        "HOME": str(tmp_path),
+    }
+    with patch.dict(os.environ, env):
+        runner.invoke(main, ["init"], input=str(prefix) + "\n")
+        result = runner.invoke(main, ["init"], input=str(prefix) + "\n")
+    assert result.exit_code == 0, result.output
+    assert "Bereits eingetragen" in result.output
+    # Kein Duplikat in .bashrc
+    bashrc = tmp_path / ".bashrc"
+    content = bashrc.read_text()
+    assert content.count("pbrew-settings.sh") == 1
+
+
+def test_init_replaces_old_path_entry(tmp_path):
+    """pbrew init ersetzt alten PATH-Export automatisch."""
+    prefix = tmp_path / "mypbrew"
+    bashrc = tmp_path / ".bashrc"
+    bashrc.write_text(
+        "# pbrew — hinzugefügt von 'pbrew init'\n"
+        f'export PATH="{tmp_path}/old/bin:$PATH"\n'
+    )
+    runner = CliRunner()
+    with patch.dict(os.environ, {
+        "XDG_CONFIG_HOME": str(tmp_path / "config"),
+        "SHELL": "/bin/bash",
+        "HOME": str(tmp_path),
+    }):
+        result = runner.invoke(main, ["init"], input=str(prefix) + "\n")
+    assert result.exit_code == 0, result.output
+    content = bashrc.read_text()
+    assert "pbrew-settings.sh" in content
+    # Kein Duplikat
+    assert content.count("pbrew") <= 4  # Kommentar + settings-Zeile (je 2× "pbrew")

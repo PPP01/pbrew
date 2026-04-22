@@ -16,11 +16,11 @@ from pbrew.core.paths import (
 )
 from pbrew.core.prerequisites import check_prerequisites, install_hint
 from pbrew.core.shell import (
+    SHELL_MAP,
     _rc_file_for,
-    already_integrated,
-    append_shell_integration,
     detect_shell,
-    path_export_snippet,
+    replace_or_append_integration,
+    write_settings_file,
 )
 from pbrew.core.wrapper_script import detect_pbrew_bin, write_wrapper_env, write_wrapper_script
 
@@ -95,21 +95,27 @@ def _check_build_prerequisites() -> None:
 
 def _setup_shell_integration(prefix: Path) -> None:
     click.echo("\nShell-Integration:")
+
+    # pbrew-settings.sh schreiben – unabhängig von der erkannten Shell
+    settings_file = write_settings_file(prefix)
+    click.echo(f"  ✓ {settings_file}")
+
     shell = detect_shell()
-    if shell is None:
+    if shell is None or shell not in SHELL_MAP:
         click.echo("  Shell nicht erkannt – bitte manuell einrichten.")
-        click.echo(f'  export PATH="{bin_dir(prefix)}:$PATH"')
+        click.echo(f"  source {settings_file}")
         return
 
+    # In Shell-RC einbinden
     rc_file = _rc_file_for(shell)
-    snippet = path_export_snippet(prefix, shell)
+    source_line = f"source {settings_file}"
 
-    if already_integrated(rc_file):
-        click.echo(f"  ✓ Bereits in {rc_file} eingetragen.")
-        return
-
-    if click.confirm(f"  PATH-Eintrag in {rc_file} eintragen?", default=True):
-        append_shell_integration(rc_file, snippet)
-        click.echo(f"  ✓ Eingetragen. Shell neu starten oder: source {rc_file}")
+    # Bereits korrekt eingetragen?
+    if rc_file.exists() and source_line in rc_file.read_text():
+        click.echo(f"  ✓ Bereits eingetragen in {rc_file}")
     else:
-        click.echo(f"  Manuell eintragen:\n    {snippet}")
+        replaced = replace_or_append_integration(rc_file, source_line)
+        if replaced:
+            click.echo(f"  ✓ Ersetzte alten Eintrag in {rc_file}")
+        else:
+            click.echo(f"  ✓ Eingetragen in {rc_file}. Shell neu starten oder: source {rc_file}")

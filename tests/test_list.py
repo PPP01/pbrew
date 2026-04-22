@@ -93,14 +93,19 @@ def test_list_shows_all_versions_in_family(tmp_path):
 
 
 def test_list_marks_active_version(tmp_path):
-    """Die aktive Version ist mit ▸ markiert."""
+    """Die aktive Version (via PBREW_ACTIVE) ist mit ▸ markiert."""
     _make_prefix(tmp_path, {
         "8.4": {
             "versions": {"8.4.19": "default", "8.4.20": "default"},
             "active": "8.4.19",
         },
     })
-    result = _invoke(tmp_path, tmp_path)
+    runner = CliRunner()
+    with patch.dict(os.environ, {
+        "XDG_CONFIG_HOME": str(tmp_path / "config"),
+        "PBREW_ACTIVE": "8.4.19",
+    }):
+        result = runner.invoke(main, ["--prefix", str(tmp_path), "list"])
     assert result.exit_code == 0, result.output
     lines = result.output.splitlines()
     active_line = next(l for l in lines if "8.4.19" in l)
@@ -139,3 +144,39 @@ def test_list_shows_config_per_version(tmp_path):
     assert result.exit_code == 0, result.output
     assert "production" in result.output
     assert "dev" in result.output
+
+
+def test_list_families_sorted_descending(tmp_path):
+    """Familien erscheinen absteigend (8.4 vor 8.3), System-PHP zuletzt."""
+    _make_prefix(tmp_path, {
+        "8.3": ["8.3.10"],
+        "8.4": ["8.4.22"],
+    })
+    result = _invoke(tmp_path, tmp_path)
+    assert result.exit_code == 0, result.output
+    pos_84 = result.output.index("8.4")
+    pos_83 = result.output.index("8.3")
+    assert pos_84 < pos_83, "8.4 muss vor 8.3 erscheinen"
+
+
+def test_list_pbrew_active_env_overrides_marker(tmp_path):
+    """PBREW_ACTIVE steuert den ▸-Marker, unabhängig vom State."""
+    # State: 8.4.19 ist aktiv; PBREW_ACTIVE überschreibt auf 8.4.20
+    _make_prefix(tmp_path, {
+        "8.4": {
+            "versions": {"8.4.19": "default", "8.4.20": "default"},
+            "active": "8.4.19",
+        },
+    })
+    runner = CliRunner()
+    with patch.dict(os.environ, {
+        "XDG_CONFIG_HOME": str(tmp_path / "config"),
+        "PBREW_ACTIVE": "8.4.20",
+    }):
+        result = runner.invoke(main, ["--prefix", str(tmp_path), "list"])
+    assert result.exit_code == 0, result.output
+    lines = result.output.splitlines()
+    line_8420 = next(l for l in lines if "8.4.20" in l)
+    line_8419 = next(l for l in lines if "8.4.19" in l)
+    assert "▸" in line_8420
+    assert "▸" not in line_8419

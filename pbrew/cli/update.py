@@ -9,10 +9,20 @@ from pbrew.cli.install import install_cmd
 
 
 @click.command("update")
-@click.argument("version_spec")
+@click.argument("version_spec", metavar="VERSION")
 @click.pass_context
 def update_cmd(ctx, version_spec):
-    """Aktualisiert eine PHP-Family auf die neueste Version."""
+    """Installiert die neueste Patch-Version einer PHP-Family.
+
+    Baut die neue PHP-Version und aktualisiert die Wrappers (php84 etc.).
+    PECL-Extensions werden dabei NICHT neu gebaut – mit installierten
+    Extensions (z.B. xdebug) danach `pbrew upgrade` verwenden, das
+    Extensions reinstalliert, FPM neustartet und Health-Checks ausführt.
+
+    \b
+      pbrew update 84     # PHP 8.4.x → neuestes Patch-Level
+      pbrew update 8.3    # PHP 8.3.x → neuestes Patch-Level
+    """
     prefix: Path = ctx.obj["prefix"]
     family = family_from_version(version_spec)
 

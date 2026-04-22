@@ -5,95 +5,83 @@ from click.testing import CliRunner
 from pbrew.cli import main
 
 
-def _setup(prefix, family, active, other=None):
-    """Legt State mit aktiver Version (active) und optional weiterer Version (other) an."""
-    for version in filter(None, [active, other]):
-        vdir = prefix / "versions" / version
-        (vdir / "bin").mkdir(parents=True)
-        (vdir / "bin" / "php").write_text("#!/bin/bash\n")
-
-    state_dir = prefix / "state"
-    state_dir.mkdir(parents=True, exist_ok=True)
-    installed = {active: {"config_name": "dev"}}
-    if other:
-        installed[other] = {"config_name": "standard"}
-    state = {"active": active, "installed": installed}
-    if other:
-        state["previous"] = other
-    (state_dir / f"{family}.json").write_text(json.dumps(state))
-
-
-def _invoke_clean(prefix, tmp_path, version, yes=True):
-    args = ["--prefix", str(prefix), "clean", version]
-    if yes:
-        args.append("--yes")
+def _invoke_clean(prefix, tmp_path, *extra_args):
+    args = ["--prefix", str(prefix), "clean", *extra_args]
     runner = CliRunner()
     with patch.dict(os.environ, {"XDG_CONFIG_HOME": str(tmp_path / "config")}):
         return runner.invoke(main, args)
 
 
-# ---------------------------------------------------------------------------
-# State wird aufgeräumt
-# ---------------------------------------------------------------------------
+def _make_build_dir(prefix, version, ext=None):
+    d = prefix / "build" / version
+    if ext:
+        d = d / ext
+    d.mkdir(parents=True)
+    (d / "dummy.c").write_text("// dummy\n")
+    return d
 
-def test_clean_removes_installed_entry_from_state(tmp_path):
-    _setup(tmp_path, "8.4", active="8.4.22", other="8.4.21")
-    result = _invoke_clean(tmp_path, tmp_path, "8.4.21")
+
+def _make_tarball(prefix, version):
+    ddir = prefix / "distfiles"
+    ddir.mkdir(parents=True, exist_ok=True)
+    tb = ddir / f"php-{version}.tar.bz2"
+    tb.write_bytes(b"dummy")
+    return tb
+
+
+def _make_state(prefix, family, installed_versions):
+    sdir = prefix / "state"
+    sdir.mkdir(parents=True, exist_ok=True)
+    state = {"active": installed_versions[0], "installed": {v: {} for v in installed_versions}}
+    (sdir / f"{family}.json").write_text(json.dumps(state))
+
+
+def test_clean_removes_all_build_dirs(tmp_path):
+    _make_build_dir(tmp_path, "8.4.22")
+    _make_build_dir(tmp_path, "8.5.5", "xdebug-3.5.1")
+    result = _invoke_clean(tmp_path, tmp_path)
     assert result.exit_code == 0, result.output
-
-    state = json.loads((tmp_path / "state" / "8.4.json").read_text())
-    assert "8.4.21" not in state["installed"]
-    # Die aktive Version bleibt unberührt
-    assert "8.4.22" in state["installed"]
+    assert not (tmp_path / "build" / "8.4.22").exists()
+    assert not (tmp_path / "build" / "8.5.5").exists()
 
 
-def test_clean_clears_previous_if_it_matches_removed_version(tmp_path):
-    """Wenn previous == gelöschte Version, muss previous auf None."""
-    _setup(tmp_path, "8.4", active="8.4.22", other="8.4.21")
-    # previous ist nach _setup "8.4.21"
-    result = _invoke_clean(tmp_path, tmp_path, "8.4.21")
+def test_clean_removes_old_tarballs(tmp_path):
+    _make_state(tmp_path, "8.4", ["8.4.22"])
+    _make_tarball(tmp_path, "8.4.21")
+    _make_tarball(tmp_path, "8.4.22")
+    result = _invoke_clean(tmp_path, tmp_path)
     assert result.exit_code == 0, result.output
+    assert not (tmp_path / "distfiles" / "php-8.4.21.tar.bz2").exists()
+    assert (tmp_path / "distfiles" / "php-8.4.22.tar.bz2").exists()
 
-    state = json.loads((tmp_path / "state" / "8.4.json").read_text())
-    assert state.get("previous") is None or "previous" not in state
 
-
-def test_clean_keeps_previous_if_different_version(tmp_path):
-    """Wenn previous != gelöschte Version, bleibt previous erhalten."""
-    _setup(tmp_path, "8.4", active="8.4.22", other="8.4.21")
-    # Zusätzlich noch 8.4.20 ins installed
-    state_path = tmp_path / "state" / "8.4.json"
-    state = json.loads(state_path.read_text())
-    state["installed"]["8.4.20"] = {}
-    state_path.write_text(json.dumps(state))
-    (tmp_path / "versions" / "8.4.20" / "bin").mkdir(parents=True)
-
-    result = _invoke_clean(tmp_path, tmp_path, "8.4.20")
+def test_clean_dry_run_keeps_everything(tmp_path):
+    _make_build_dir(tmp_path, "8.4.22")
+    _make_state(tmp_path, "8.4", ["8.4.22"])
+    _make_tarball(tmp_path, "8.4.21")
+    result = _invoke_clean(tmp_path, tmp_path, "--dry-run")
     assert result.exit_code == 0, result.output
+    assert (tmp_path / "build" / "8.4.22").exists()
+    assert (tmp_path / "distfiles" / "php-8.4.21.tar.bz2").exists()
+    assert "[dry-run]" in result.output
 
-    state = json.loads(state_path.read_text())
-    assert state.get("previous") == "8.4.21"  # unverändert
+
+def test_clean_no_build_dirs_reports_nothing_found(tmp_path):
+    result = _invoke_clean(tmp_path, tmp_path)
+    assert result.exit_code == 0, result.output
+    assert "gefunden" in result.output.lower()
 
 
-# ---------------------------------------------------------------------------
-# clean blockiert aktive Version
-# ---------------------------------------------------------------------------
-
-def test_clean_refuses_to_remove_active_version(tmp_path):
-    _setup(tmp_path, "8.4", active="8.4.22", other="8.4.21")
+def test_clean_version_removes_specific_build_dir(tmp_path):
+    _make_build_dir(tmp_path, "8.4.22")
+    _make_build_dir(tmp_path, "8.5.5")
     result = _invoke_clean(tmp_path, tmp_path, "8.4.22")
-    assert result.exit_code != 0
-    assert "aktive" in result.output.lower()
-    # Verzeichnis darf nicht gelöscht worden sein
-    assert (tmp_path / "versions" / "8.4.22").exists()
+    assert result.exit_code == 0, result.output
+    assert not (tmp_path / "build" / "8.4.22").exists()
+    assert (tmp_path / "build" / "8.5.5").exists()
 
 
-# ---------------------------------------------------------------------------
-# clean akzeptiert nicht-installierte Versionen ohne Fehler
-# ---------------------------------------------------------------------------
-
-def test_clean_warns_when_version_not_installed(tmp_path):
-    _setup(tmp_path, "8.4", active="8.4.22")
+def test_clean_version_reports_when_not_found(tmp_path):
     result = _invoke_clean(tmp_path, tmp_path, "8.4.99")
-    assert result.exit_code == 0
-    assert "nicht installiert" in result.output.lower()
+    assert result.exit_code == 0, result.output
+    assert "gefunden" in result.output.lower()

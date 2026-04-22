@@ -8,7 +8,10 @@ def extract_tarball(tarball: Path, dest_dir: Path) -> Path:
     """Entpackt Tarball nach dest_dir, gibt das Source-Verzeichnis zurück."""
     dest_dir.mkdir(parents=True, exist_ok=True)
     with tarfile.open(tarball) as tar:
-        top_level = tar.getnames()[0].split("/")[0]
+        # PECL-Tarballs haben package.xml auf Root-Ebene und kein explizites
+        # Verzeichnis-Member. Daher: alle Namen mit "/" suchen → Top-Segment.
+        top_dirs = {name.split("/")[0] for name in tar.getnames() if "/" in name}
+        top_level = top_dirs.pop() if len(top_dirs) == 1 else tar.getnames()[0].split("/")[0]
         tar.extractall(dest_dir, filter="data")
     return dest_dir / top_level
 
@@ -40,9 +43,16 @@ def write_ext_ini(
     family: str,
     ext_name: str,
     is_zend: bool = False,
+    debug: bool = False,
 ) -> Path:
-    """Schreibt Extension-INI in den shared scan-dir. Bestehende nie überschreiben."""
-    ini_dir = prefix / "etc" / "conf.d" / family
+    """Schreibt Extension-INI in den scan-dir.
+
+    debug=True schreibt in conf.d/<family>d/ (nur von phpd geladen),
+    sonst in conf.d/<family>/ (von php und phpd geladen).
+    Bestehende INIs werden nie überschrieben.
+    """
+    from pbrew.core.paths import confd_debug_dir, confd_dir
+    ini_dir = confd_debug_dir(prefix, family) if debug else confd_dir(prefix, family)
     ini_dir.mkdir(parents=True, exist_ok=True)
     ini = ini_dir / f"{ext_name}.ini"
     if ini.exists():

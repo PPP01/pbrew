@@ -6,11 +6,11 @@ from pbrew.core.paths import distfiles_dir, state_dir, versions_dir, state_file,
 from pbrew.core.state import get_family_state
 
 
-@click.command("cleanup")
+@click.command("cleanup", deprecated=True, hidden=True)
 @click.option("--dry-run", is_flag=True, help="Zeigt was gelöscht würde, ohne zu löschen")
 @click.pass_context
 def cleanup_cmd(ctx, dry_run):
-    """Entfernt Tarballs von nicht installierten PHP-Versionen aus dem Distfiles-Cache."""
+    """Veraltet – bitte 'pbrew clean' verwenden."""
     prefix: Path = ctx.obj["prefix"]
 
     installed = _collect_installed_versions(prefix)
