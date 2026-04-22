@@ -322,10 +322,7 @@ def add_ext_cmd(ctx, version_spec):
         if target is None:
             click.echo("Config-Auswahl abgebrochen – Rebuild-Gruppe uebersprungen.")
         else:
-            if not target.exists():
-                _update_config_variants(target, list(active_variants) + rebuild_picks)
-            else:
-                _update_config_variants(target, rebuild_picks)
+            _update_config_variants(target, rebuild_picks)
             summary.append(
                 f"  [rebuild]    {', '.join(rebuild_picks)} → {target.name}"
             )

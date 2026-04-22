@@ -79,6 +79,29 @@ def test_ext_add_rebuild_adds_to_config(tmp_path):
     assert "intl" in text
 
 
+def test_ext_add_rebuild_creates_new_config(tmp_path):
+    _setup_version(tmp_path)
+    configs = tmp_path / "configs"
+    configs.mkdir()
+    new_cfg = configs / "myprofile.toml"
+    # Neue Config existiert noch nicht
+    assert not new_cfg.exists()
+    with patch("pbrew.cli.ext._query_extensions", return_value=({}, [], ["intl"])), \
+         patch("pbrew.cli.ext._is_tty", return_value=True), \
+         patch("pbrew.cli.ext._prompt_multiselect",
+               return_value={"Standard (Rebuild)": ["intl"]}), \
+         patch("pbrew.cli.ext._prompt_config_choice",
+               return_value=new_cfg):
+        result = _invoke(tmp_path, tmp_path, "ext", "add", "8.4")
+    assert result.exit_code == 0, result.output
+    assert new_cfg.exists()
+    import tomlkit
+    data = tomlkit.loads(new_cfg.read_text()).unwrap()
+    assert "intl" in data["build"]["variants"]
+    # Kein active_variants-Überlauf: nur rebuild_picks sollen drin sein
+    assert "opcache" not in data["build"]["variants"]
+
+
 def test_ext_add_nothing_selected(tmp_path):
     _setup_version(tmp_path)
     with patch("pbrew.cli.ext._query_extensions", return_value=({}, ["redis"], [])), \
