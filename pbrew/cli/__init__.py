@@ -20,6 +20,7 @@ from pbrew.cli.fpm import fpm_cmd
 from pbrew.cli.ext import ext_cmd
 from pbrew.cli.upgrade import upgrade_cmd, rollback_cmd
 from pbrew.cli.config_ import config_cmd
+from pbrew.cli.test_ import test_cmd
 
 
 _VERSION_RE = re.compile(r"^\d{2}$|^\d\.\d+(\.\d+)?$")
@@ -83,3 +84,4 @@ main.add_command(ext_cmd, name="ext")
 main.add_command(upgrade_cmd, name="upgrade")
 main.add_command(rollback_cmd, name="rollback")
 main.add_command(config_cmd, name="config")
+main.add_command(test_cmd, name="test")
