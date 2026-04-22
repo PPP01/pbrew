@@ -39,7 +39,7 @@ def test_ext_list_shows_active_and_inactive(tmp_path):
     _setup_version(tmp_path)
     _write_ini(tmp_path, "8.4", "apcu")
     _write_ini(tmp_path, "8.4", "xdebug", disabled=True)
-    result = _invoke(tmp_path, tmp_path, "ext", "list", "8.4")
+    result = _invoke(tmp_path, tmp_path, "ext", "installed", "8.4")
     assert result.exit_code == 0, result.output
     assert "apcu" in result.output
     assert "xdebug" in result.output
@@ -49,7 +49,7 @@ def test_ext_list_shows_active_and_inactive(tmp_path):
 
 def test_ext_list_without_scan_dir(tmp_path):
     _setup_version(tmp_path)
-    result = _invoke(tmp_path, tmp_path, "ext", "list", "8.4")
+    result = _invoke(tmp_path, tmp_path, "ext", "installed", "8.4")
     assert result.exit_code == 0
     assert "Kein scan-dir" in result.output
 
@@ -118,7 +118,7 @@ def test_family_resolved_from_pbrew_active(tmp_path):
     """Ohne explizites Argument wird PBREW_ACTIVE verwendet (neue Architektur)."""
     _setup_version(tmp_path)
     _write_ini(tmp_path, "8.4", "apcu")
-    result = _invoke(tmp_path, tmp_path, "ext", "list", env_extra={"PBREW_ACTIVE": "8.4.22"})
+    result = _invoke(tmp_path, tmp_path, "ext", "installed", env_extra={"PBREW_ACTIVE": "8.4.22"})
     assert result.exit_code == 0
     assert "apcu" in result.output
 
@@ -127,7 +127,7 @@ def test_family_resolved_from_pbrew_php_fallback(tmp_path):
     """PBREW_PHP wird als Fallback akzeptiert, wenn PBREW_ACTIVE nicht gesetzt."""
     _setup_version(tmp_path)
     _write_ini(tmp_path, "8.4", "apcu")
-    result = _invoke(tmp_path, tmp_path, "ext", "list", env_extra={"PBREW_PHP": "8.4"})
+    result = _invoke(tmp_path, tmp_path, "ext", "installed", env_extra={"PBREW_PHP": "8.4"})
     assert result.exit_code == 0
     assert "apcu" in result.output
 
@@ -137,7 +137,7 @@ def test_family_resolved_from_global_state(tmp_path):
     _setup_version(tmp_path)
     _write_ini(tmp_path, "8.4", "apcu")
     # Kein PBREW_PHP; global state hat default_family=8.4
-    result = _invoke(tmp_path, tmp_path, "ext", "list")
+    result = _invoke(tmp_path, tmp_path, "ext", "installed")
     assert result.exit_code == 0, result.output
     assert "apcu" in result.output
 
@@ -145,6 +145,6 @@ def test_family_resolved_from_global_state(tmp_path):
 def test_family_error_without_any_hint(tmp_path):
     """Keine Argumente, kein Env, kein Global → Fehler mit Hinweis."""
     # Kein setup – also auch kein global.json mit default_family
-    result = _invoke(tmp_path, tmp_path, "ext", "list")
+    result = _invoke(tmp_path, tmp_path, "ext", "installed")
     assert result.exit_code != 0
     assert "Keine aktive PHP-Version" in result.output
